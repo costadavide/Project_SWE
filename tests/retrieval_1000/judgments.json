@@ -1,0 +1,359 @@
+{
+  "description": "Graded relevance judgments for 16 queries over a fixed set of 1000 profiles (profile_ids.json). Every profile was reviewed for every query: 2 = clearly relevant (already does this kind of work), 1 = partially relevant (adjacent role, or a career changer who is trained for the role but has not held it), any profile not listed = 0. Judgments were made by one reviewer (Claude) on 2026-11-14 and are only valid for this profile set.",
+  "queries": [
+    {
+      "query_id": "icu-nurse",
+      "query": "Registered nurse with ICU / critical care experience",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn_over_qualified_0004381",
+          "syn_standard_0006790",
+          "syn_career_changer_0073439",
+          "syn_visa_constrained_0082269"
+        ],
+        "1": [
+          "syn_visa_constrained_0026866",
+          "syn2_career_changer_0100764",
+          "syn2_senior_specialist_0050149",
+          "syn2_standard_0031687",
+          "syn_sparse_profile_0000372",
+          "syn_senior_specialist_0031687",
+          "syn_entry_level_0074248",
+          "syn_sparse_profile_0098336"
+        ]
+      },
+      "notes": "Grade 2: nurses with ICU work, including an ICU nurse resident and a home-health RN who previously worked in ICU. Grade 1: other registered nurses with acute-care skills."
+    },
+    {
+      "query_id": "nlp-ml",
+      "query": "Machine learning engineer specialized in NLP and large language models",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_senior_specialist_0029817",
+          "syn2_manager_lead_0018575",
+          "syn2_visa_constrained_0105299",
+          "syn2_over_qualified_0005727",
+          "syn2_entry_level_0020987",
+          "syn_entry_level_0098871",
+          "syn2_entry_level_0053911"
+        ],
+        "1": [
+          "syn_return_to_work_0018573",
+          "syn_return_to_work_0046678",
+          "syn2_senior_specialist_0115732",
+          "syn2_over_qualified_0116536",
+          "syn2_sparse_profile_0118149",
+          "syn_standard_0095665",
+          "syn2_sparse_profile_0090038",
+          "syn_entry_level_0070773",
+          "syn2_visa_constrained_0064333",
+          "syn2_standard_0101271"
+        ]
+      },
+      "notes": "Grade 2 includes junior LLM/NLP profiles (AI developer, ML intern fine-tuning BERT, junior MLOps on LLM pipelines). Grade 1: general ML, speech and search engineers."
+    },
+    {
+      "query_id": "k8s",
+      "query": "Kubernetes engineer to run our cloud infrastructure",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_senior_specialist_0019301",
+          "syn_career_changer_0077117",
+          "syn_sparse_profile_0045800",
+          "syn2_visa_constrained_0013682",
+          "syn2_entry_level_0096388",
+          "syn_over_qualified_0024918",
+          "syn_entry_level_0056242",
+          "syn2_standard_0047408"
+        ],
+        "1": [
+          "syn_return_to_work_0071505",
+          "syn2_return_to_work_0093951",
+          "syn_senior_specialist_0060247",
+          "syn2_senior_specialist_0115732",
+          "syn2_sparse_profile_0113247",
+          "syn2_student_intern_0074858",
+          "syn2_standard_0137368",
+          "syn2_senior_specialist_0017666",
+          "syn_gig_contract_0008032",
+          "syn2_senior_specialist_0051392",
+          "syn2_standard_0102016",
+          "syn2_entry_level_0053911"
+        ]
+      },
+      "notes": "Grade 2: engineers whose main job is Kubernetes or cloud infrastructure. Grade 1: backend, platform and ML engineers who list Kubernetes among other skills."
+    },
+    {
+      "query_id": "wind",
+      "query": "Wind turbine technician",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_visa_constrained_0085634",
+          "syn2_standard_0052921",
+          "syn2_senior_specialist_0007743",
+          "syn2_military_transition_0046287",
+          "syn2_entry_level_0112936",
+          "syn2_over_qualified_0071390"
+        ],
+        "1": []
+      },
+      "notes": "Includes a wind-energy intern and a Director of Operations who previously led wind turbine technicians."
+    },
+    {
+      "query_id": "aml",
+      "query": "Anti-money laundering and KYC compliance analyst",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_visa_constrained_0072595",
+          "syn_standard_0087851",
+          "syn2_return_to_work_0003537",
+          "syn2_standard_0051717",
+          "syn2_student_intern_0107958"
+        ],
+        "1": [
+          "syn_bootcamp_self_taught_0062154",
+          "syn_manager_lead_0042112",
+          "syn2_sparse_profile_0116791",
+          "syn_return_to_work_0074202",
+          "syn2_sparse_profile_0126427",
+          "syn2_entry_level_0035657",
+          "syn2_entry_level_0033247"
+        ]
+      },
+      "notes": "Career changers with AML skills but no AML job (Field Technician, Research Assistant) are grade 1. A compliance intern doing due diligence is grade 2."
+    },
+    {
+      "query_id": "chef",
+      "query": "Executive chef to lead a restaurant kitchen",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_standard_0008592",
+          "syn_over_qualified_0010200",
+          "syn2_return_to_work_0068817"
+        ],
+        "1": [
+          "syn2_military_transition_0104161",
+          "syn_return_to_work_0021444",
+          "syn2_manager_lead_0009402",
+          "syn2_sparse_profile_0047147",
+          "syn_entry_level_0091302",
+          "syn_entry_level_0012609",
+          "syn2_student_intern_0035896"
+        ]
+      },
+      "notes": "Grade 1: other kitchen roles (sous chef, kitchen supervisor, cooks) and food and beverage managers."
+    },
+    {
+      "query_id": "plumber-para",
+      "query": "Someone who can fix leaking pipes in my house and install a new water heater",
+      "query_type": "paraphrase",
+      "relevant": {
+        "2": [
+          "syn_standard_0003691",
+          "syn2_standard_0064719",
+          "syn2_manager_lead_0021357"
+        ],
+        "1": [
+          "syn2_sparse_profile_0035010",
+          "syn2_visa_constrained_0054282",
+          "syn2_sparse_profile_0147429",
+          "syn2_entry_level_0142612",
+          "syn_over_qualified_0079979"
+        ]
+      },
+      "notes": "Grade 2: plumbers. Grade 1: steamfitters, pipefitters, HVAC and a field technician doing boiler and pipe work."
+    },
+    {
+      "query_id": "asic",
+      "query": "Chip design engineer for ASIC physical design and timing closure",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_standard_0114988",
+          "syn_manager_lead_0082061",
+          "syn2_senior_specialist_0066005",
+          "syn2_standard_0008989",
+          "syn_return_to_work_0020230",
+          "syn2_standard_0034688",
+          "syn2_standard_0110167",
+          "syn2_sparse_profile_0052354"
+        ],
+        "1": [
+          "syn2_senior_specialist_0081260",
+          "syn_senior_specialist_0027459",
+          "syn2_career_changer_0025853",
+          "syn_over_qualified_0045919"
+        ]
+      },
+      "notes": "Grade 1: FPGA engineers and an analog design engineer."
+    },
+    {
+      "query_id": "blockchain",
+      "query": "Blockchain developer writing smart contracts",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_manager_lead_0030596",
+          "syn_bootcamp_self_taught_0077171"
+        ],
+        "1": [
+          "syn2_student_intern_0035429",
+          "syn2_senior_specialist_0059519",
+          "syn_entry_level_0028093",
+          "syn2_entry_level_0087515",
+          "syn2_entry_level_0014537"
+        ]
+      },
+      "notes": "An apprentice electrician who is self-taught in Solidity is grade 1. Grade 1 also covers fintech and cryptography profiles."
+    },
+    {
+      "query_id": "ortho",
+      "query": "Orthopedic surgeon specializing in joint replacement",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_over_qualified_0075060",
+          "syn2_standard_0068636",
+          "syn_sparse_profile_0075060"
+        ],
+        "1": [
+          "syn2_entry_level_0112801",
+          "syn_career_changer_0024471",
+          "syn2_senior_specialist_0144117"
+        ]
+      },
+      "notes": "People preparing for orthopedics without being surgeons (medical scribe, QA Inspector with a post-bacc) are grade 1, as is a general surgeon."
+    },
+    {
+      "query_id": "forklift-az",
+      "query": "Warehouse worker with forklift experience in Arizona",
+      "query_type": "location",
+      "relevant": {
+        "2": [
+          "syn2_entry_level_0095294"
+        ],
+        "1": [
+          "syn_standard_0026207",
+          "syn_career_changer_0003753",
+          "syn2_senior_specialist_0096900",
+          "syn_sparse_profile_0080840"
+        ]
+      },
+      "notes": "Only one profile is a warehouse worker with forklift skills in Arizona. Grade 1: forklift profiles in other states, and a Phoenix warehouse manager with no forklift mention."
+    },
+    {
+      "query_id": "naval",
+      "query": "Naval architect for ship design and stability analysis",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn_over_qualified_0018675",
+          "syn2_bootcamp_self_taught_0054810",
+          "syn_sparse_profile_0022690",
+          "syn_sparse_profile_0017872"
+        ],
+        "1": [
+          "syn2_senior_specialist_0092552",
+          "syn2_entry_level_0115036",
+          "syn2_sparse_profile_0136717",
+          "syn_standard_0045174"
+        ]
+      },
+      "notes": "A logistics coordinator with naval architecture training but no naval job is grade 1. Grade 1 also covers marine engineers."
+    },
+    {
+      "query_id": "speech",
+      "query": "Speech recognition engineer",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_sparse_profile_0118149",
+          "syn_standard_0095665"
+        ],
+        "1": [
+          "syn2_manager_lead_0090831",
+          "syn2_entry_level_0111709",
+          "syn2_visa_constrained_0105299",
+          "syn2_senior_specialist_0029817",
+          "syn2_over_qualified_0005727"
+        ]
+      },
+      "notes": "Grade 1: DSP and speech-enhancement engineers, plus NLP engineers."
+    },
+    {
+      "query_id": "grants",
+      "query": "Grant writer for a nonprofit",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_return_to_work_0119460",
+          "syn2_return_to_work_0004631",
+          "syn_entry_level_0047190"
+        ],
+        "1": [
+          "syn2_senior_specialist_0031935",
+          "syn2_manager_lead_0028706",
+          "syn2_standard_0127925",
+          "syn2_standard_0049598",
+          "syn2_senior_specialist_0069678",
+          "syn_visa_constrained_0047993"
+        ]
+      },
+      "notes": "A sales associate with a nonprofit degree and grant skills but no grant job is grade 1. A development assistant who drafts proposals is grade 2."
+    },
+    {
+      "query_id": "kids-reading-para",
+      "query": "A teacher who can help young kids learn to read",
+      "query_type": "paraphrase",
+      "relevant": {
+        "2": [
+          "syn_senior_specialist_0057466",
+          "syn2_entry_level_0075927",
+          "syn_visa_constrained_0005289"
+        ],
+        "1": [
+          "syn2_student_intern_0111261",
+          "syn2_student_intern_0085569",
+          "syn2_entry_level_0144209",
+          "syn2_manager_lead_0067119",
+          "syn_standard_0055859",
+          "syn2_bootcamp_self_taught_0075926",
+          "syn2_career_changer_0136969"
+        ]
+      },
+      "notes": "Grade 2: preschool teacher and teaching assistants doing literacy instruction. Grade 1: student teachers, tutor, youth librarian, ESL and early-childhood curriculum roles."
+    },
+    {
+      "query_id": "data-eng",
+      "query": "Data engineer building pipelines with Spark and dbt",
+      "query_type": "direct",
+      "relevant": {
+        "2": [
+          "syn2_over_qualified_0107734",
+          "syn_standard_0045100",
+          "syn_over_qualified_0076412",
+          "syn_standard_0012175"
+        ],
+        "1": [
+          "syn2_over_qualified_0035463",
+          "syn2_manager_lead_0100509",
+          "syn_career_changer_0039481",
+          "syn2_senior_specialist_0050714",
+          "syn2_standard_0069985",
+          "syn_return_to_work_0094853",
+          "syn2_return_to_work_0093951",
+          "syn2_career_changer_0087646",
+          "syn2_over_qualified_0116536",
+          "syn2_over_qualified_0009666"
+        ]
+      },
+      "notes": "Grade 2: data engineers and an ETL developer using Spark/dbt. Grade 1: database, BI, data architecture and adjacent data roles."
+    }
+  ]
+}

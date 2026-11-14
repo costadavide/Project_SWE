@@ -2,3 +2,5 @@ pandas
 pyarrow
 psycopg[binary]
 python-dotenv
+numpy 
+sentence-transformers

@@ -1,0 +1,145 @@
+{
+  "description": "Intended-profile sanity test for the saved semantic-search index. Each query was written from one profile; other returned profiles may also be valid matches. 'direct' cases use the role and key skills, 'paraphrase' cases express the same need in plain words, 'profile_details' cases need information beyond the role and skills (bio, earlier roles, job descriptions, certifications, education, languages, or a most recent role found by sorting jobs by date), and 'location' cases ask for a role that appears more than once in the index, so the city and state separate the intended profile from the others.",
+  "cases": [
+    {
+      "case_id": "photographer-direct",
+      "query": "Freelance photographer with food photography, photojournalism and Adobe Lightroom photo retouching",
+      "intended_profile_id": "syn2_bootcamp_self_taught_0000775",
+      "query_type": "direct",
+      "support": "Last role 'Freelance Photographer'; skills include food photography, photojournalism, photo retouching and Adobe Lightroom."
+    },
+    {
+      "case_id": "photographer-paraphrase",
+      "query": "I need someone who can take appealing pictures of dishes for a restaurant menu and edit the shots afterwards",
+      "intended_profile_id": "syn2_bootcamp_self_taught_0000775",
+      "query_type": "paraphrase",
+      "support": "Skills include food photography and photo retouching."
+    },
+    {
+      "case_id": "kernel-engineer-direct",
+      "query": "Principal kernel engineer skilled in C, Assembly, interrupt handling and kernel tracing",
+      "intended_profile_id": "syn_over_qualified_0008038",
+      "query_type": "direct",
+      "support": "Last role 'Principal Kernel Engineer'; skills include C, Assembly, interrupt handling and kernel tracing."
+    },
+    {
+      "case_id": "kernel-engineer-paraphrase",
+      "query": "Looking for a veteran low-level programmer who can debug operating system internals and tune performance in C and assembly",
+      "intended_profile_id": "syn_over_qualified_0008038",
+      "query_type": "paraphrase",
+      "support": "24 years of experience; skills include kernel tracing, performance profiling, C and Assembly."
+    },
+    {
+      "case_id": "staff-nurse-direct",
+      "query": "Staff nurse experienced in medication administration, care coordination and central line care",
+      "intended_profile_id": "syn_sparse_profile_0019643",
+      "query_type": "direct",
+      "support": "Last role 'Staff Nurse'; 8 years of experience; skills are medication administration, care coordination, central line care and glucometers."
+    },
+    {
+      "case_id": "staff-nurse-paraphrase",
+      "query": "We need a nurse who can give patients their medications, look after central lines and coordinate their care",
+      "intended_profile_id": "syn_sparse_profile_0019643",
+      "query_type": "paraphrase",
+      "support": "Last role 'Staff Nurse'; skills include medication administration, central line care and care coordination."
+    },
+    {
+      "case_id": "diesel-mechanic-direct",
+      "query": "Diesel mechanic with hydraulic system troubleshooting, cooling system repair and electrical circuit testing",
+      "intended_profile_id": "syn2_sparse_profile_0010142",
+      "query_type": "direct",
+      "support": "Last role 'Diesel Mechanic'; skills include hydraulic system troubleshooting, cooling system repair and electrical wiring and circuit testing."
+    },
+    {
+      "case_id": "diesel-mechanic-paraphrase",
+      "query": "Our diesel engines keep overheating and the hydraulics fail; we need someone who can repair them and trace wiring faults",
+      "intended_profile_id": "syn2_sparse_profile_0010142",
+      "query_type": "paraphrase",
+      "support": "Last role 'Diesel Mechanic'; skills include cooling system repair, hydraulic system troubleshooting and electrical wiring and circuit testing."
+    },
+    {
+      "case_id": "tax-accountant-direct",
+      "query": "Senior tax accountant with individual taxation, tax return preparation and Corptax experience",
+      "intended_profile_id": "syn2_sparse_profile_0018770",
+      "query_type": "direct",
+      "support": "Last role 'Senior Tax Accountant'; skills are individual taxation, tax returns, tax accounting and Corptax."
+    },
+    {
+      "case_id": "tax-accountant-paraphrase",
+      "query": "I want an experienced accountant to prepare personal income tax returns",
+      "intended_profile_id": "syn2_sparse_profile_0018770",
+      "query_type": "paraphrase",
+      "support": "8 years of experience as a senior tax accountant; skills include individual taxation and tax returns."
+    },
+    {
+      "case_id": "photographer-drone-certification",
+      "query": "Licensed drone pilot holding an FAA Part 107 certificate",
+      "intended_profile_id": "syn2_bootcamp_self_taught_0000775",
+      "query_type": "profile_details",
+      "support": "Certification 'Certified Drone Pilot (FAA Part 107)'; skills include aerial photography."
+    },
+    {
+      "case_id": "physician-current-role",
+      "query": "Resident physician training in radiology who interprets imaging studies",
+      "intended_profile_id": "syn_career_changer_0008406",
+      "query_type": "profile_details",
+      "support": "Most recent role by date is 'Resident Physician' (the jobs are stored oldest first); bio mentions specializing in radiology; skills include interpretation of imaging studies."
+    },
+    {
+      "case_id": "lead-mason-restoration",
+      "query": "Lead mason who supervises crews on restoration projects and holds OSHA 30 and NCCER certifications",
+      "intended_profile_id": "syn2_standard_0026993",
+      "query_type": "profile_details",
+      "support": "Most recent role by date is 'Lead Mason'; role description: supervises a crew of 5-8 masons on restoration projects; certifications OSHA 30-Hour Construction Safety and NCCER Masonry Certification."
+    },
+    {
+      "case_id": "foreign-service-candidate",
+      "query": "Experienced paramedic who has passed the Foreign Service Officer Test and speaks Spanish",
+      "intended_profile_id": "syn_career_changer_0012669",
+      "query_type": "profile_details",
+      "support": "Most recent role 'Paramedic' with 14 years of experience; certifications include Foreign Service Officer Test (FSOT); languages English and Spanish. Made specific to this profile because syn_entry_level_0046395 (political science graduate) also passed the FSOT and speaks Spanish."
+    },
+    {
+      "case_id": "composer-healthcare-music",
+      "query": "Composer who writes therapeutic music for hospitals and patient care programs",
+      "intended_profile_id": "syn_over_qualified_0094706",
+      "query_type": "profile_details",
+      "support": "Bio: composer crafting therapeutic soundscapes for healthcare environments; role description: composed music for patient care and healing programs."
+    },
+    {
+      "case_id": "engine-programmer-architecture",
+      "query": "Principal engine programmer who owns the architecture of a real-time visualization engine",
+      "intended_profile_id": "syn2_senior_specialist_0118054",
+      "query_type": "profile_details",
+      "support": "Most recent role by date is 'Principal Engine Programmer' (an older 'Warehouse Associate' job is stored first); bio and role description mention real-time visualization and engine architecture. Another indexed profile is a Senior Engine Programmer and may also be a valid match."
+    },
+    {
+      "case_id": "warehouse-associate-new-jersey",
+      "query": "Warehouse associate in Elizabeth, New Jersey",
+      "intended_profile_id": "syn_visa_constrained_0036675",
+      "query_type": "location",
+      "support": "Most recent role 'Warehouse Associate', located in Elizabeth, NJ. The other Warehouse Associate in the index is in Richmond, VA."
+    },
+    {
+      "case_id": "engine-programmer-louisiana",
+      "query": "Engine programmer based in Lafayette, Louisiana",
+      "intended_profile_id": "syn2_senior_specialist_0038557",
+      "query_type": "location",
+      "support": "Most recent role 'Senior Engine Programmer', located in Lafayette, LA. The other engine programmer is in New York, NY."
+    },
+    {
+      "case_id": "housing-counselor-north-carolina",
+      "query": "Housing counselor in Greensboro, North Carolina",
+      "intended_profile_id": "syn2_standard_0002229",
+      "query_type": "location",
+      "support": "Most recent role 'Housing Counselor', located in Greensboro, NC. The other housing counselor (Senior) is in Erie, PA."
+    },
+    {
+      "case_id": "data-scientist-kansas",
+      "query": "Data scientist located in Kansas",
+      "intended_profile_id": "syn2_return_to_work_0068373",
+      "query_type": "location",
+      "support": "Most recent role 'Data Scientist', located in Olathe, KS (the text uses the abbreviation). The other data scientist is in Newark, NJ."
+    }
+  ]
+}

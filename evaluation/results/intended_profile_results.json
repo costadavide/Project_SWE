@@ -1,0 +1,658 @@
+{
+  "model_name": "Qwen/Qwen3-Embedding-0.6B",
+  "data_dir": "data",
+  "indexed_profiles": 100,
+  "experience_weight": 0.3,
+  "top_k": 5,
+  "summary": {
+    "overall": {
+      "cases": 20,
+      "hit_rate_at_5": 1.0,
+      "mrr_at_5": 0.95
+    },
+    "by_query_type": {
+      "direct": {
+        "cases": 5,
+        "hit_rate_at_5": 1.0,
+        "mrr_at_5": 1.0
+      },
+      "location": {
+        "cases": 4,
+        "hit_rate_at_5": 1.0,
+        "mrr_at_5": 0.875
+      },
+      "paraphrase": {
+        "cases": 5,
+        "hit_rate_at_5": 1.0,
+        "mrr_at_5": 1.0
+      },
+      "profile_details": {
+        "cases": 6,
+        "hit_rate_at_5": 1.0,
+        "mrr_at_5": 0.9166666666666666
+      }
+    }
+  },
+  "results": [
+    {
+      "case_id": "photographer-direct",
+      "query_type": "direct",
+      "query": "Freelance photographer with food photography, photojournalism and Adobe Lightroom photo retouching",
+      "intended_profile_id": "syn2_bootcamp_self_taught_0000775",
+      "intended_rank": 1,
+      "intended_score": 0.6216,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_bootcamp_self_taught_0000775",
+          "score": 0.6216
+        },
+        {
+          "profile_id": "syn2_entry_level_0115060",
+          "score": 0.3763
+        },
+        {
+          "profile_id": "syn2_career_changer_0021883",
+          "score": 0.3222
+        },
+        {
+          "profile_id": "syn2_student_intern_0022033",
+          "score": 0.3215
+        },
+        {
+          "profile_id": "syn2_standard_0002229",
+          "score": 0.3105
+        }
+      ]
+    },
+    {
+      "case_id": "photographer-paraphrase",
+      "query_type": "paraphrase",
+      "query": "I need someone who can take appealing pictures of dishes for a restaurant menu and edit the shots afterwards",
+      "intended_profile_id": "syn2_bootcamp_self_taught_0000775",
+      "intended_rank": 1,
+      "intended_score": 0.4998,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_bootcamp_self_taught_0000775",
+          "score": 0.4998
+        },
+        {
+          "profile_id": "syn2_entry_level_0053563",
+          "score": 0.4211
+        },
+        {
+          "profile_id": "syn2_entry_level_0115060",
+          "score": 0.3768
+        },
+        {
+          "profile_id": "syn2_career_changer_0021883",
+          "score": 0.3551
+        },
+        {
+          "profile_id": "syn2_student_intern_0022033",
+          "score": 0.3236
+        }
+      ]
+    },
+    {
+      "case_id": "kernel-engineer-direct",
+      "query_type": "direct",
+      "query": "Principal kernel engineer skilled in C, Assembly, interrupt handling and kernel tracing",
+      "intended_profile_id": "syn_over_qualified_0008038",
+      "intended_rank": 1,
+      "intended_score": 0.6568,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_over_qualified_0008038",
+          "score": 0.6568
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0118054",
+          "score": 0.508
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0038557",
+          "score": 0.4603
+        },
+        {
+          "profile_id": "syn2_over_qualified_0068410",
+          "score": 0.4556
+        },
+        {
+          "profile_id": "syn2_standard_0139016",
+          "score": 0.3956
+        }
+      ]
+    },
+    {
+      "case_id": "kernel-engineer-paraphrase",
+      "query_type": "paraphrase",
+      "query": "Looking for a veteran low-level programmer who can debug operating system internals and tune performance in C and assembly",
+      "intended_profile_id": "syn_over_qualified_0008038",
+      "intended_rank": 1,
+      "intended_score": 0.6251,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_over_qualified_0008038",
+          "score": 0.6251
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0038557",
+          "score": 0.4797
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0118054",
+          "score": 0.4729
+        },
+        {
+          "profile_id": "syn2_career_changer_0124256",
+          "score": 0.4206
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0135761",
+          "score": 0.4171
+        }
+      ]
+    },
+    {
+      "case_id": "staff-nurse-direct",
+      "query_type": "direct",
+      "query": "Staff nurse experienced in medication administration, care coordination and central line care",
+      "intended_profile_id": "syn_sparse_profile_0019643",
+      "intended_rank": 1,
+      "intended_score": 0.6305,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_sparse_profile_0019643",
+          "score": 0.6305
+        },
+        {
+          "profile_id": "syn2_over_qualified_0102347",
+          "score": 0.5751
+        },
+        {
+          "profile_id": "syn2_entry_level_0105564",
+          "score": 0.4761
+        },
+        {
+          "profile_id": "syn_senior_specialist_0060816",
+          "score": 0.4745
+        },
+        {
+          "profile_id": "syn2_entry_level_0039736",
+          "score": 0.4649
+        }
+      ]
+    },
+    {
+      "case_id": "staff-nurse-paraphrase",
+      "query_type": "paraphrase",
+      "query": "We need a nurse who can give patients their medications, look after central lines and coordinate their care",
+      "intended_profile_id": "syn_sparse_profile_0019643",
+      "intended_rank": 1,
+      "intended_score": 0.612,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_sparse_profile_0019643",
+          "score": 0.612
+        },
+        {
+          "profile_id": "syn2_over_qualified_0102347",
+          "score": 0.5791
+        },
+        {
+          "profile_id": "syn2_entry_level_0105564",
+          "score": 0.4897
+        },
+        {
+          "profile_id": "syn_senior_specialist_0060816",
+          "score": 0.4772
+        },
+        {
+          "profile_id": "syn2_entry_level_0039736",
+          "score": 0.4746
+        }
+      ]
+    },
+    {
+      "case_id": "diesel-mechanic-direct",
+      "query_type": "direct",
+      "query": "Diesel mechanic with hydraulic system troubleshooting, cooling system repair and electrical circuit testing",
+      "intended_profile_id": "syn2_sparse_profile_0010142",
+      "intended_rank": 1,
+      "intended_score": 0.6763,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_sparse_profile_0010142",
+          "score": 0.6763
+        },
+        {
+          "profile_id": "syn2_gig_contract_0006599",
+          "score": 0.4528
+        },
+        {
+          "profile_id": "syn2_manager_lead_0052709",
+          "score": 0.4521
+        },
+        {
+          "profile_id": "syn2_return_to_work_0092498",
+          "score": 0.4317
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0038557",
+          "score": 0.4159
+        }
+      ]
+    },
+    {
+      "case_id": "diesel-mechanic-paraphrase",
+      "query_type": "paraphrase",
+      "query": "Our diesel engines keep overheating and the hydraulics fail; we need someone who can repair them and trace wiring faults",
+      "intended_profile_id": "syn2_sparse_profile_0010142",
+      "intended_rank": 1,
+      "intended_score": 0.6431,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_sparse_profile_0010142",
+          "score": 0.6431
+        },
+        {
+          "profile_id": "syn2_gig_contract_0006599",
+          "score": 0.4485
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0038557",
+          "score": 0.4428
+        },
+        {
+          "profile_id": "syn2_manager_lead_0052709",
+          "score": 0.4254
+        },
+        {
+          "profile_id": "syn_standard_0029632",
+          "score": 0.4084
+        }
+      ]
+    },
+    {
+      "case_id": "tax-accountant-direct",
+      "query_type": "direct",
+      "query": "Senior tax accountant with individual taxation, tax return preparation and Corptax experience",
+      "intended_profile_id": "syn2_sparse_profile_0018770",
+      "intended_rank": 1,
+      "intended_score": 0.6095,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_sparse_profile_0018770",
+          "score": 0.6095
+        },
+        {
+          "profile_id": "syn2_visa_constrained_0046449",
+          "score": 0.3405
+        },
+        {
+          "profile_id": "syn2_standard_0031786",
+          "score": 0.3323
+        },
+        {
+          "profile_id": "syn2_standard_0006780",
+          "score": 0.3284
+        },
+        {
+          "profile_id": "syn2_standard_0139016",
+          "score": 0.3273
+        }
+      ]
+    },
+    {
+      "case_id": "tax-accountant-paraphrase",
+      "query_type": "paraphrase",
+      "query": "I want an experienced accountant to prepare personal income tax returns",
+      "intended_profile_id": "syn2_sparse_profile_0018770",
+      "intended_rank": 1,
+      "intended_score": 0.5826,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_sparse_profile_0018770",
+          "score": 0.5826
+        },
+        {
+          "profile_id": "syn2_student_intern_0022033",
+          "score": 0.3913
+        },
+        {
+          "profile_id": "syn2_visa_constrained_0046449",
+          "score": 0.3706
+        },
+        {
+          "profile_id": "syn2_standard_0031786",
+          "score": 0.3569
+        },
+        {
+          "profile_id": "syn2_standard_0139016",
+          "score": 0.3544
+        }
+      ]
+    },
+    {
+      "case_id": "photographer-drone-certification",
+      "query_type": "profile_details",
+      "query": "Licensed drone pilot holding an FAA Part 107 certificate",
+      "intended_profile_id": "syn2_bootcamp_self_taught_0000775",
+      "intended_rank": 2,
+      "intended_score": 0.4763,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_return_to_work_0074589",
+          "score": 0.4987
+        },
+        {
+          "profile_id": "syn2_bootcamp_self_taught_0000775",
+          "score": 0.4763
+        },
+        {
+          "profile_id": "syn2_entry_level_0137224",
+          "score": 0.4654
+        },
+        {
+          "profile_id": "syn_standard_0090518",
+          "score": 0.455
+        },
+        {
+          "profile_id": "syn2_career_changer_0021883",
+          "score": 0.4034
+        }
+      ]
+    },
+    {
+      "case_id": "physician-current-role",
+      "query_type": "profile_details",
+      "query": "Resident physician training in radiology who interprets imaging studies",
+      "intended_profile_id": "syn_career_changer_0008406",
+      "intended_rank": 1,
+      "intended_score": 0.7614,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_career_changer_0008406",
+          "score": 0.7614
+        },
+        {
+          "profile_id": "syn2_entry_level_0039736",
+          "score": 0.425
+        },
+        {
+          "profile_id": "syn_senior_specialist_0060816",
+          "score": 0.3981
+        },
+        {
+          "profile_id": "syn2_return_to_work_0138000",
+          "score": 0.3891
+        },
+        {
+          "profile_id": "syn2_standard_0075078",
+          "score": 0.3805
+        }
+      ]
+    },
+    {
+      "case_id": "lead-mason-restoration",
+      "query_type": "profile_details",
+      "query": "Lead mason who supervises crews on restoration projects and holds OSHA 30 and NCCER certifications",
+      "intended_profile_id": "syn2_standard_0026993",
+      "intended_rank": 1,
+      "intended_score": 0.7901,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_standard_0026993",
+          "score": 0.7901
+        },
+        {
+          "profile_id": "syn_visa_constrained_0010194",
+          "score": 0.4754
+        },
+        {
+          "profile_id": "syn2_standard_0003944",
+          "score": 0.4517
+        },
+        {
+          "profile_id": "syn_over_qualified_0087417",
+          "score": 0.4229
+        },
+        {
+          "profile_id": "syn2_gig_contract_0006599",
+          "score": 0.4215
+        }
+      ]
+    },
+    {
+      "case_id": "foreign-service-candidate",
+      "query_type": "profile_details",
+      "query": "Experienced paramedic who has passed the Foreign Service Officer Test and speaks Spanish",
+      "intended_profile_id": "syn_career_changer_0012669",
+      "intended_rank": 1,
+      "intended_score": 0.6951,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_career_changer_0012669",
+          "score": 0.6951
+        },
+        {
+          "profile_id": "syn2_student_intern_0009438",
+          "score": 0.5227
+        },
+        {
+          "profile_id": "syn_entry_level_0046395",
+          "score": 0.5065
+        },
+        {
+          "profile_id": "syn_standard_0090518",
+          "score": 0.496
+        },
+        {
+          "profile_id": "syn2_return_to_work_0074589",
+          "score": 0.4931
+        }
+      ]
+    },
+    {
+      "case_id": "composer-healthcare-music",
+      "query_type": "profile_details",
+      "query": "Composer who writes therapeutic music for hospitals and patient care programs",
+      "intended_profile_id": "syn_over_qualified_0094706",
+      "intended_rank": 1,
+      "intended_score": 0.7021,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_over_qualified_0094706",
+          "score": 0.7021
+        },
+        {
+          "profile_id": "syn_career_changer_0008406",
+          "score": 0.3863
+        },
+        {
+          "profile_id": "syn_senior_specialist_0060816",
+          "score": 0.3788
+        },
+        {
+          "profile_id": "syn2_standard_0084183",
+          "score": 0.3544
+        },
+        {
+          "profile_id": "syn2_entry_level_0039736",
+          "score": 0.3524
+        }
+      ]
+    },
+    {
+      "case_id": "engine-programmer-architecture",
+      "query_type": "profile_details",
+      "query": "Principal engine programmer who owns the architecture of a real-time visualization engine",
+      "intended_profile_id": "syn2_senior_specialist_0118054",
+      "intended_rank": 1,
+      "intended_score": 0.7694,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_senior_specialist_0118054",
+          "score": 0.7694
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0038557",
+          "score": 0.5577
+        },
+        {
+          "profile_id": "syn_over_qualified_0008038",
+          "score": 0.4824
+        },
+        {
+          "profile_id": "syn2_over_qualified_0068410",
+          "score": 0.4455
+        },
+        {
+          "profile_id": "syn2_standard_0139016",
+          "score": 0.4222
+        }
+      ]
+    },
+    {
+      "case_id": "warehouse-associate-new-jersey",
+      "query_type": "location",
+      "query": "Warehouse associate in Elizabeth, New Jersey",
+      "intended_profile_id": "syn_visa_constrained_0036675",
+      "intended_rank": 1,
+      "intended_score": 0.4997,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_visa_constrained_0036675",
+          "score": 0.4997
+        },
+        {
+          "profile_id": "syn_entry_level_0072114",
+          "score": 0.4804
+        },
+        {
+          "profile_id": "syn2_sparse_profile_0038979",
+          "score": 0.3803
+        },
+        {
+          "profile_id": "syn2_student_intern_0022033",
+          "score": 0.3693
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0122641",
+          "score": 0.3689
+        }
+      ]
+    },
+    {
+      "case_id": "engine-programmer-louisiana",
+      "query_type": "location",
+      "query": "Engine programmer based in Lafayette, Louisiana",
+      "intended_profile_id": "syn2_senior_specialist_0038557",
+      "intended_rank": 1,
+      "intended_score": 0.5371,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_senior_specialist_0038557",
+          "score": 0.5371
+        },
+        {
+          "profile_id": "syn2_senior_specialist_0118054",
+          "score": 0.5019
+        },
+        {
+          "profile_id": "syn2_gig_contract_0006599",
+          "score": 0.4252
+        },
+        {
+          "profile_id": "syn_over_qualified_0008038",
+          "score": 0.4124
+        },
+        {
+          "profile_id": "syn2_sparse_profile_0010142",
+          "score": 0.4119
+        }
+      ]
+    },
+    {
+      "case_id": "housing-counselor-north-carolina",
+      "query_type": "location",
+      "query": "Housing counselor in Greensboro, North Carolina",
+      "intended_profile_id": "syn2_standard_0002229",
+      "intended_rank": 1,
+      "intended_score": 0.6119,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn2_standard_0002229",
+          "score": 0.6119
+        },
+        {
+          "profile_id": "syn_senior_specialist_0017486",
+          "score": 0.5781
+        },
+        {
+          "profile_id": "syn2_standard_0067117",
+          "score": 0.4774
+        },
+        {
+          "profile_id": "syn2_sparse_profile_0038979",
+          "score": 0.3919
+        },
+        {
+          "profile_id": "syn2_entry_level_0124335",
+          "score": 0.3865
+        }
+      ]
+    },
+    {
+      "case_id": "data-scientist-kansas",
+      "query_type": "location",
+      "query": "Data scientist located in Kansas",
+      "intended_profile_id": "syn2_return_to_work_0068373",
+      "intended_rank": 2,
+      "intended_score": 0.4383,
+      "in_top_5": true,
+      "top_5": [
+        {
+          "profile_id": "syn_sparse_profile_0044301",
+          "score": 0.4457
+        },
+        {
+          "profile_id": "syn2_return_to_work_0068373",
+          "score": 0.4383
+        },
+        {
+          "profile_id": "syn2_over_qualified_0106917",
+          "score": 0.4122
+        },
+        {
+          "profile_id": "syn2_manager_lead_0079633",
+          "score": 0.4119
+        },
+        {
+          "profile_id": "syn_standard_0048318",
+          "score": 0.4033
+        }
+      ]
+    }
+  ]
+}

@@ -3,3 +3,7 @@ node_modules/
 .env.local
 .venv/
 __pycache__/
+data/
+.venv-backup/
+.venv-embeddings/
+.venv-python312/
