@@ -12,7 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row
-from semantic_search.profile_text import experience_to_text, profile_to_text
+from semantic_search.profile_text1 import experience_to_text, profile_to_text
 from semantic_search.scoring import DEFAULT_EXPERIENCE_WEIGHT
 from sentence_transformers import SentenceTransformer
 import json

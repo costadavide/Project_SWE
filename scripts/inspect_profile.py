@@ -3,7 +3,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row
-from semantic_search.profile_text import profile_to_text
+from semantic_search.profile_text1 import profile_to_text
 from sentence_transformers import SentenceTransformer
 import json
 import numpy as np
