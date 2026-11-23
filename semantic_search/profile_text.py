@@ -1,5 +1,22 @@
 import json 
 
+
+def month_key(date):
+    """Convert 'MM/YYYY' to (year, month) for sorting; None if missing or malformed."""
+    try:
+        month, year = date.split("/")
+        return int(year), int(month)
+    except (AttributeError, ValueError):
+        return None
+
+
+def job_sort_key(exp):
+    """Newest first with reverse=True: ongoing jobs, then latest start date, undated last."""
+    start = month_key(exp.get("start_date"))
+    is_ongoing = not exp.get("end_date")
+    return start is not None, is_ongoing, start or (0, 0)
+
+
 def text_generation(row, include_seed_role=True, include_bio=True):
     """
     Generate the text that will be then used to generate the embedding for the user
@@ -60,10 +77,8 @@ def text_generation(row, include_seed_role=True, include_bio=True):
     experience_data = profile.get("experience")
     if experience_data is None:
         experience_data = []
-    sorted_experiences = sorted(
-    experience_data,
-    key=lambda exp: exp.get("start_date") or "",
-    reverse=True) # sort experiences from currest/latest to first one
+    # sort experiences from current/latest to first one
+    sorted_experiences = sorted(experience_data, key=job_sort_key, reverse=True)
 
     for exp in sorted_experiences:
         title = clean(exp.get("title"))
