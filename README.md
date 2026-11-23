@@ -127,5 +127,5 @@ From the project root:
 python -m scripts.seed_people 20000
 ```
 
-This downloads the source dataset and inserts profiles into Neon. Configure
-`DATABASE_URL_UNPOOLED` or `DATABASE_URL` in `.env.local` before running either script.
+This downloads the source dataset and inserts profiles into the PostgreSQL database (AWS RDS). Configure
+`DATABASE_URL` in `.env.local` before running either script (`DATABASE_URL_UNPOOLED`, if set, takes precedence).

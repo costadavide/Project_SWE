@@ -1,4 +1,4 @@
-"""Build the saved search index from Neon profiles.
+"""Build the saved search index from the profiles in the PostgreSQL database (AWS RDS).
 
 Usage:
     python -m scripts.build_index                              # photographer + 99 random profiles

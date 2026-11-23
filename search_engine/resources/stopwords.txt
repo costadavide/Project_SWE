@@ -1,0 +1,59 @@
+# Stopwords for search_engine/analyzer.py
+# One lowercase word per line. Lines starting with # and blank lines are ignored.
+# Removed words keep their position slot (so phrases stay honest).
+# Checked before stemming, so the words here are unstemmed.
+#
+# Base: the Lucene / Elasticsearch default English list (33 words), which is
+# small on purpose: BM25's IDF already gives frequent words almost no weight.
+# Added: first-person and second-person pronouns, because bios are written
+# in the first person ("I have 8 years...").
+#
+# it, or, as are here: their acronym forms (IT, OR, AS) are handled by
+# acronym_stopwords.txt. no/not are removed too; negation is the query
+# parser's job (-term, must_not), not the analyzer's.
+# Do not add content words (full, senior, experience, ...) without checking
+# document frequencies and NDCG first. After editing, rebuild the index.
+
+# Lucene / Elasticsearch default
+a
+an
+and
+are
+as
+at
+be
+but
+by
+for
+if
+in
+into
+is
+it
+no
+not
+of
+on
+or
+such
+that
+the
+their
+then
+there
+these
+they
+this
+to
+was
+will
+with
+
+# Pronouns (first-person bios)
+i
+me
+my
+we
+our
+you
+your

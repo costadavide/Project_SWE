@@ -1,0 +1,22 @@
+# Acronyms that are also stopwords, for search_engine/analyzer.py
+# One UPPERCASE token per line. Lines starting with # and blank lines are ignored.
+# In documents: kept (as the lowercase term) only when written in all capitals
+#   ("IT support" -> it); any other casing is the ordinary word and is removed.
+# In queries: never removed, because users type in lowercase ("it support").
+# Source: all-caps words in skills and job titles (AWS database, 2026-11-20).
+# Keep this in sync with your stopword list: every all-caps word from the data
+# that your stopword list contains belongs here.
+# Not included: I. The pronoun "I" is always written in capitals, so the
+# all-caps rule cannot tell it apart from the level in "Engineer I".
+
+# Information Technology (1,356 skills, 11,610 job titles)
+IT
+# Operating Room ("OR Nurse", 174 job titles)
+OR
+# United States (301 skills, 87 job titles)
+US
+# CAN bus (774 skills)
+CAN
+# Programming languages R and C: only needed if one-letter tokens are dropped
+R
+C

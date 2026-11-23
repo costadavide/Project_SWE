@@ -1,0 +1,100 @@
+# Protected tokens for search_engine/analyzer.py
+# One lowercase token per line. Lines starting with # and blank lines are ignored.
+# A protected token is kept whole (never split) and never stemmed.
+# Source: words inside the people.skills column (AWS database, 2026-11-20),
+# kept only where splitting or stemming would make the token wrong or ambiguous.
+# Slash lists of real words (html/css, linux/unix, ui/ux) are NOT here: splitting them is fine.
+# After editing this file, rebuild the index.
+
+# Programming languages and tools with symbols
+c++
+c#
+.net
+notepad++
+crypto++
+kdb+
+es6+
+hdr10+
+star-ccm+
+alcoa+
+security+
+midas+
+pl/sql
+
+# JavaScript libraries and dotted product names
+node.js
+next.js
+vue.js
+express.js
+nuxt.js
+three.js
+zone.js
+web3.js
+ethers.js
+prebid.js
+atlas.ti
+doxy.me
+chorus.ai
+otter.ai
+h.264
+h.265
+
+# Ampersand abbreviations (would split into single letters)
+r&d
+m&a
+p&l
+gd&t
+s&op
+p&id
+p&ids
+fp&a
+att&ck
+v&v
+r&r
+o&m
+s&p
+p&r
+a&r
+ff&e
+gr&r
+b&r
+b&k
+h&p
+p&g
+
+# Slash abbreviations whose parts mean little alone
+a/b
+ci/cd
+i/o
+tcp/ip
+ac/dc
+dc/dc
+a/c
+a/d
+d/a
+e/m
+ob/gyn
+z/os
+z/osmf
+s/4hana
+pss/e
+http/2
+
+# Acronyms that Snowball English would damage (checked with snowballstemmer)
+# e.g. aws -> aw, aed -> a, ems -> em (collides with EM), ats -> at
+aws
+aed
+ems
+ats
+ims
+ansys
+lims
+ifrs
+pacs
+cics
+ehs
+pals
+ipfs
+ecdis
+asme
+erdas
