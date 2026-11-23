@@ -1,6 +1,6 @@
 import json 
 
-def text_generation(row):
+def text_generation(row, include_seed_role=True, include_bio=True):
     """
     Generate the text that will be then used to generate the embedding for the user
     Generates 3 texts: 
@@ -31,21 +31,37 @@ def text_generation(row):
 
     # 1. main text 
     core = []
-    # seed_role
-    add(core, "Occupation Category", row.get("seed_role"))
-    # job_family
-    add(core, "Professional field", clean(row.get("job_family")).replace("_", " "))
+    if include_seed_role:
+        add(core, "Occupation Category", row.get("seed_role"))
+
+    # Professional field
+    add(
+        core,
+        "Professional field",
+        clean(row.get("job_family")).replace("_", " ")
+    )
     # skills
-    skills = row.get("skills") or user.get("skills") or []
-    if skills:
+    skills = row.get("skills")
+
+    if skills is None:
+        skills = user.get("skills") or []
+
+    if len(skills) > 0:
         add(core, "Skills", ", ".join(skills))
-    # bio
-    add(core, "Professional Summary", user.get("bio"))
+
+     # Professional summary
+    if include_bio:
+        add(core, "Professional Summary", user.get("bio"))
+    
+
     # experiences (title, description)
     experiences = []
 
+    experience_data = profile.get("experience")
+    if experience_data is None:
+        experience_data = []
     sorted_experiences = sorted(
-    profile.get("experience") or [],
+    experience_data,
     key=lambda exp: exp.get("start_date") or "",
     reverse=True) # sort experiences from currest/latest to first one
 
@@ -59,25 +75,35 @@ def text_generation(row):
 
     # education
     education = []
-    for edu in profile.get("education") or []:
+    edu_data = profile.get("education")
+    if edu_data is None:
+        edu_data = []
+
+    for edu in edu_data:
         degree = clean(edu.get("degree"))
         study_field = clean(edu.get("field_of_study"))
 
-        if degree or study_field:
+        if degree and study_field:
             education.append(f"{degree} in {study_field}") 
         elif degree or study_field:
             education.append(degree or study_field)
     add_list_section(core, "Education", education)
     # certifications 
-    certifications = [ clean(cert.get("name")) for cert in profile.get("certifications") or []]
+    cert_data = profile.get("certifications")
+    if cert_data is None:
+        cert_data = []
+    certifications = [ clean(cert.get("name")) for cert in cert_data]
     add_list_section(core, "Certifications", certifications)
 
     # 2. projects
     # name
     # description
     projects = []
+    projects_data = profile.get("projects")
+    if projects_data is None:
+        projects_data = []
 
-    for proj in profile.get("projects") or []:
+    for proj in projects_data:
         name = clean(proj.get("name"))
         description = clean(proj.get("description"))
 
@@ -90,7 +116,9 @@ def text_generation(row):
     add_list_section(projects_text, "Projects", projects)
 
     #3. career interests
-    interests = user.get("career_interests") or []
+    interests = user.get("career_interests")
+    if interests is None:
+        interests = []
     career_interests = []
     add_list_section(career_interests, "Desired Career Roles", interests)
 
