@@ -85,6 +85,7 @@ from pathlib import Path
 import re
 
 stemmer = snowballstemmer.stemmer("english")
+stem_cache = {}
 
 def build_set_from_txt(path):
     f = path.read_text(encoding="utf-8")
@@ -166,7 +167,10 @@ def split_text(text, chars_to_strip=CHARS_TO_STRIP, acronyms=ACRONYMS, protected
 
 def stem_word(word, stem=True):
     if stem:
-        return stemmer.stemWord(word)
+        if word in stem_cache:
+            return stem_cache[word]
+        stem_cache[word] = stemmer.stemWord(word)
+        return stem_cache[word]
     return word
 
 

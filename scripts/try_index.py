@@ -1,14 +1,26 @@
-"""Build an Index from 3 hand-made profiles and print everything it stores.
+"""Build an Index and print what it stores.
 
-Throwaway helper to see what the index looks like. No database needed.
+Default: build from the corpus snapshot (data/corpus/profiles.jsonl, made by
+python -m search_engine.corpus), save it to data/index/lexical.pkl, and print
+corpus-level statistics plus a few example lookups.
+With --toy: build from 3 hand-made profiles and print everything (no files needed).
 
 Usage (from the project root):
-    python -m scripts.try_index
+    python -m scripts.try_index                 # full corpus (10k), saves the index
+    python -m scripts.try_index --limit 500     # first 500 corpus profiles, not saved
+    python -m scripts.try_index --toy           # 3 hand-made profiles
+    python -m scripts.try_index --terms nurs python engin   # choose the example terms
 """
 
+import argparse
 import json
+import time
+from pathlib import Path
 
+from search_engine.corpus import load_corpus
 from search_engine.index import Index
+
+INDEX_PATH = Path("data") / "index" / "lexical.pkl"
 
 PROFILES = [
     {
@@ -69,6 +81,7 @@ PROFILES = [
 ]
 
 
+
 def plain(value):
     """Turn nested defaultdicts into plain dicts so they print cleanly."""
     if isinstance(value, dict):
@@ -76,32 +89,80 @@ def plain(value):
     return value
 
 
-index = Index(PROFILES)
+def print_field_stats(index):
+    fields = sorted(set(index.sum_length_field) | set(index.n_docs_per_field))
+    print(f"{'field':15} {'sum':>9} {'docs':>6} {'avg':>7}")
+    for field in fields:
+        print(f"{field:15} {index.sum_length_field[field]:9} {index.n_docs_per_field[field]:6} "
+              f"{index.avg_field_length(field):7.2f}")
 
-print("=== N (number of documents) ===")
-print(len(index))
 
-print("\n=== doc_store (internal doc_id -> stored info) ===")
-for doc_id, info in enumerate(index.doc_store):
-    print(doc_id, info)
+def show_toy(index):
+    print("=== doc_store (internal doc_id -> stored info) ===")
+    for doc_id, info in enumerate(index.doc_store):
+        print(doc_id, info)
+    print("\n=== postings (term -> doc_id -> field -> positions), sorted by term ===")
+    for term in sorted(index.postings):
+        print(f"{term:15} df={index.doc_freq(term)}  {json.dumps(plain(index.read_term(term)))}")
+    print("\n=== field_lengths (doc_id -> field -> number of terms) ===")
+    for doc_id in range(len(index)):
+        print(doc_id, plain(index.field_lengths.get(doc_id, {})))
+    print("\n=== per-field statistics ===")
+    print_field_stats(index)
 
-print("\n=== postings (term -> doc_id -> field -> positions), sorted by term ===")
-for term in sorted(index.postings):
-    print(f"{term:15} df={index.doc_freq(term)}  {json.dumps(plain(index.read_term(term)))}")
 
-print("\n=== field_lengths (doc_id -> field -> number of terms) ===")
-for doc_id in range(len(index)):
-    print(doc_id, plain(index.field_lengths.get(doc_id, {})))
+def show_corpus(index, terms):
+    print(f"documents: {len(index)}   distinct terms: {len(index.postings)}")
 
-print("\n=== per-field statistics ===")
-fields = sorted(set(index.sum_length_field) | set(index.n_docs_per_field))
-print(f"{'field':15} {'sum':>5} {'docs':>5} {'avg':>6}")
-for field in fields:
-    print(f"{field:15} {index.sum_length_field[field]:5} {index.n_docs_per_field[field]:5} "
-          f"{index.avg_field_length(field):6.2f}")
+    print("\n=== per-field statistics ===")
+    print_field_stats(index)
 
-print("\n=== example lookups ===")
-for term in ["nurs", "python", "xyz"]:
-    print(f"read_term({term!r}) -> {json.dumps(plain(index.read_term(term)))}")
-print("read_field_length(2, 'current_title') ->", index.read_field_length(2, "current_title"))
-print("read_doc(1) ->", index.read_doc(1))
+    print("\n=== 20 most common terms (document frequency) ===")
+    common = sorted(index.postings, key=index.doc_freq, reverse=True)[:20]
+    for term in common:
+        print(f"{term:15} df={index.doc_freq(term):6}  ({index.doc_freq(term) / len(index):.0%} of docs)")
+
+    print("\n=== example lookups (first 3 docs per term) ===")
+    for term in terms:
+        postings = index.read_term(term)
+        print(f"\n{term!r}: df={len(postings)}")
+        for doc_id in list(postings)[:3]:
+            print(f"  doc {doc_id} {index.read_doc(doc_id)['profile_id']}: {json.dumps(plain(postings[doc_id]))}")
+
+    print("\n=== doc 0 ===")
+    print(index.read_doc(0))
+    print({field: index.read_field_length(0, field) for field in index.field_lengths.get(0, {})})
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Build an Index and print what it stores.")
+    parser.add_argument("--toy", action="store_true", help="use 3 hand-made profiles instead of the corpus")
+    parser.add_argument("--limit", type=int, help="only index the first N corpus profiles (not saved)")
+    parser.add_argument("--terms", nargs="+", default=["nurs", "python", "engin", "icu", "c++"],
+                        help="analyzed terms to look up in the example section")
+    args = parser.parse_args()
+
+    if args.toy:
+        show_toy(Index(PROFILES))
+        return
+
+    rows = load_corpus()
+    if args.limit:
+        rows = rows[:args.limit]
+    print(f"Building the index from {len(rows)} corpus profiles...")
+    start = time.perf_counter()
+    index = Index(rows)
+    print(f"Built in {time.perf_counter() - start:.1f} s")
+
+    if not args.limit:
+        start = time.perf_counter()
+        index.save(INDEX_PATH)
+        size_mb = INDEX_PATH.stat().st_size / 1e6
+        print(f"Saved to {INDEX_PATH} ({size_mb:.1f} MB) in {time.perf_counter() - start:.1f} s")
+
+    print()
+    show_corpus(index, args.terms)
+
+
+if __name__ == "__main__":
+    main()

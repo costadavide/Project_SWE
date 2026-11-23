@@ -3,6 +3,7 @@ from search_engine.fields import profile_to_dict
 from search_engine.analyzer import analyze
 import pickle
 from pathlib import Path
+import math
 
 # defaultdict needs a function that creates the missing value, not a value.
 # These named functions build one nesting level each:
@@ -129,6 +130,48 @@ class Index:
             raise KeyError("Document ID not in the index")
 
         return self.doc_store[doc_id]
+
+    def term_freq(self, term, doc_id):
+        if not (0 <= doc_id < self.n_docs):
+            raise KeyError("Document ID not in the index")
+        
+        postings = self.read_term(term)
+        if not postings:
+            return 0
+
+        if doc_id not in postings:
+            return 0
+        
+        tf = 0
+        for field in postings[doc_id]:
+            tf += len(postings[doc_id][field])
+
+        return tf
+
+    def doc_length(self, doc_id):
+        if not (0 <= doc_id < self.n_docs):
+            raise KeyError("Document ID not in the index")
+        
+        if doc_id not in self.field_lengths:
+            return 0
+        
+        dl = 0
+        for fl in self.field_lengths[doc_id].values():
+            dl += fl
+
+        return dl
+
+    def avg_doc_length(self):
+        avg = 0
+        for field in self.sum_length_field.values():
+            avg += field
+
+        return avg / self.n_docs
+
+    def idf(self, term):
+        df = self.doc_freq(term)
+        
+        return math.log(1 + (self.n_docs - df  + 0.5) / (df + 0.5))
 
     def save(self, path):
         """Save the whole index to a pickle file (creates the folder if needed)."""
