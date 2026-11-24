@@ -119,6 +119,29 @@ Full results are written to `tests/retrieval_1000/results/latest.json`. The
 grades were made by one reviewer and only apply to this profile set; new
 queries must be graded against all 1000 profiles by hand.
 
+## Embed the whole database
+
+```bash
+python -m scripts.embed_people              # embed what is still missing
+python -m scripts.embed_people --status     # show progress, change nothing
+python -m scripts.embed_people --limit 500  # at most 500 profiles, then stop
+python -m scripts.embed_people --refresh    # also redo profiles whose text changed
+```
+
+This embeds the three texts of `text_generation()` (core, projects and
+interests, without the seed role) with `Qwen/Qwen3-Embedding-0.6B` and saves
+them in the `profile_embeddings` table, one row per profile. A vector is NULL
+when the profile has no such text (for example, no projects).
+
+Press Ctrl+C to stop after the current batch is saved, and run the same command
+again to continue. A crash loses at most one batch (256 profiles). Use
+`--refresh` after changing `semantic_search/profile_text.py`. On a Mac,
+`caffeinate -i python -m scripts.embed_people` stops it from sleeping meanwhile.
+
+Vectors have unit length and were encoded without a prompt. Encode search
+queries with the same model and `prompt_name="query"`: leaving it out lowers
+the ranking quality a lot.
+
 ## Import profiles
 
 From the project root:
