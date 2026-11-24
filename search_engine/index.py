@@ -41,6 +41,7 @@ class Index:
         self.n_docs = 0
         self.n_docs_per_field = defaultdict(int)
         self.sum_length_field = defaultdict(int)
+        self.doc_id_by_profile = {}
 
         self.build_index(docs)
 
@@ -59,6 +60,9 @@ class Index:
 
         if not document.get("profile", None):
             return None
+
+        if profile_id in self.doc_id_by_profile:
+            raise KeyError(f"Error: profile id: {profile_id} already mapped to doc: {self.doc_id_by_profile[profile_id]}")
         
         prof = {"profile_id": profile_id}
         keys = ["job_family", "seniority", "city", "state", "experience_years"]
@@ -69,6 +73,7 @@ class Index:
         self.doc_store.append(prof)
         self.n_docs += 1
         doc_id = len(self.doc_store) - 1
+        self.doc_id_by_profile[profile_id] = doc_id
 
         profile = profile_to_dict(document["profile"])
         for field in profile:
@@ -98,6 +103,11 @@ class Index:
         if term not in self.postings:
             return {}
         return self.postings[term]
+
+    def read_doc_id(self, profile_id):
+        if profile_id not in self.doc_id_by_profile:
+            return None
+        return self.doc_id_by_profile[profile_id]
 
     def __len__(self):
         return self.n_docs
@@ -190,6 +200,12 @@ class Index:
             raise TypeError(f"{path} does not contain an Index")
         if getattr(index, "field_stem", None) != FIELD_STEM:
             print(f"Warning: {path} was built with different stem settings; rebuild the index.")
+        # Indexes saved before doc_id_by_profile existed: rebuild it from the doc store
+        # (it is fully derivable, so old pickles keep working without a rebuild).
+        if not hasattr(index, "doc_id_by_profile"):
+            index.doc_id_by_profile = {}
+            for doc_id, info in enumerate(index.doc_store):
+                index.doc_id_by_profile[info["profile_id"]] = doc_id
         return index
 
     def _common_fields(self, term_docs, doc_id):
