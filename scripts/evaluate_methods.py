@@ -1,5 +1,7 @@
 """Evaluate search methods on the 16 graded queries over the 1,000 judged profiles.
 
+Methods: bm25, bm25f, semantic (core embedding only) and semantic_weighted
+(core 0.80 / projects 0.15 / interests 0.05), all run by default.
 Every method is anything with search(query, k, allowed) returning
 (profiles, breakdowns), where profiles = [(profile_id, score), ...] best first,
 like BM25 and BM25F in search_engine/bm25.py. A semantic searcher or a fusion
@@ -13,11 +15,13 @@ and locations are not indexed, so expect it to be weak for now.
 
 Output: a per-query NDCG@10 table, a summary per method (mean NDCG@10, MRR@10,
 P@5, R@10, p50/p95 latency), means by query type, wins/losses against the
-first method, and a JSON file with everything (default results/evaluate_methods.json).
+first method, and a JSON file with everything (default data/results/evaluate_methods.json).
 
 Usage (from the project root, after python -m scripts.try_index):
     python -m scripts.evaluate_methods
     python -m scripts.evaluate_methods --methods bm25f
+    python -m scripts.evaluate_methods --methods bm25f semantic   # semantic needs the embeddings
+                                         # snapshot: python -m search_engine.corpus --embeddings-only
     python -m scripts.evaluate_methods --show-top 3      # also print the top 3 titles per query
 """
 
@@ -38,6 +42,9 @@ JUDGED_IDS_PATH = project_root / "tests" / "retrieval_1000" / "profile_ids.json"
 DEFAULT_OUTPUT = project_root / "data" / "results" / "evaluate_methods.json"
 K = 10
 MAIN_METRIC = f"NDCG@{K}"
+AVAILABLE_METHODS = ["bm25", "bm25f", "semantic", "semantic_weighted"]
+# test_embeddings.py's "weighted" mode
+SEMANTIC_WEIGHTS = {"core": 0.80, "projects": 0.15, "interests": 0.05}
 
 
 def load_judgments(path=JUDGMENTS_PATH):
@@ -70,12 +77,25 @@ def judged_doc_ids(index, path=JUDGED_IDS_PATH):
     return allowed
 
 
-def build_methods(index):
-    """name -> searcher. Add semantic / fusion here once they have the same search()."""
-    return {
-        "bm25": BM25(index),
-        "bm25f": BM25F(index),
-    }
+def build_methods(index, names=None):
+    """name -> searcher, for the requested names (None = all). Add fusion here once it
+    has the same search(). The semantic searchers share one model, loaded once."""
+    names = names or AVAILABLE_METHODS
+    methods = {}
+    if "bm25" in names:
+        methods["bm25"] = BM25(index)
+    if "bm25f" in names:
+        methods["bm25f"] = BM25F(index)
+    if any(name.startswith("semantic") for name in names):
+        from semantic_search.searcher import SemanticSearcher
+
+        semantic = SemanticSearcher()
+        semantic.check_alignment(index)
+        if "semantic" in names:
+            methods["semantic"] = semantic
+        if "semantic_weighted" in names:
+            methods["semantic_weighted"] = SemanticSearcher(weights=SEMANTIC_WEIGHTS, model=semantic.load_model())
+    return methods
 
 
 def percentile(values, share):
@@ -174,8 +194,10 @@ def load_titles():
 
 def method_settings(searcher):
     """The parameters of a method, saved with the results so runs can be compared."""
-    return {key: value for key, value in vars(searcher).items()
-            if key in ("k1", "b", "w") and isinstance(value, (int, float, dict))}
+    settings = {key: value for key, value in vars(searcher).items()
+                if key in ("k1", "b", "w", "weights", "query_prompt", "model_name")
+                and isinstance(value, (int, float, dict, str))}
+    return settings
 
 
 def main():
@@ -195,12 +217,11 @@ def main():
     print(f"Loaded {INDEX_PATH} ({len(index)} docs), {len(queries)} queries, "
           f"ranking only the {len(allowed)} judged profiles.")
 
-    methods = build_methods(index)
     if args.methods:
-        unknown = [name for name in args.methods if name not in methods]
+        unknown = [name for name in args.methods if name not in AVAILABLE_METHODS]
         if unknown:
-            parser.error(f"unknown methods {unknown}; available: {list(methods)}")
-        methods = {name: methods[name] for name in args.methods}
+            parser.error(f"unknown methods {unknown}; available: {AVAILABLE_METHODS}")
+    methods = build_methods(index, args.methods)
 
     all_results = {name: evaluate(name, searcher, queries, allowed, judged_profiles)
                    for name, searcher in methods.items()}

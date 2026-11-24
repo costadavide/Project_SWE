@@ -31,20 +31,43 @@ and the protected keys inside the profile JSON (user.age, user.desired_salary,
 user.ethnicity, user.legal_status, user.sponsorship_needed) are removed
 before writing. user.skills stays: fields.py reads the skills from there.
 
+Embeddings
+----------
+The teammate's table public.profile_embeddings holds, for every profile, three
+pgvector columns (core_embedding, projects_embedding, interests_embedding) made
+with one model (Qwen/Qwen3-Embedding-0.6B). They are snapshotted too, so the
+semantic searcher never touches the database either:
+- row i of each matrix is the profile on line i of profiles.jsonl, which is
+  doc_id i in the lexical index: the two methods are aligned by construction;
+- every row is normalized to length 1 (normalizing an already normalized
+  vector changes nothing), so cosine similarity is a dot product;
+- a NULL embedding (e.g. a profile with no projects) is stored as a row of
+  zeros: it scores 0 against every query. The counts are in embeddings.json.
+The pgvector adapter (pip install pgvector) makes psycopg return vector
+columns as numpy arrays instead of '[0.05, -0.06, ...]' strings.
+
 Output (data/ is not in Git)
 ----------------------------
-data/corpus/profiles.jsonl     one JSON object per line, one line per profile
-data/corpus/profile_ids.json   [{"profile_id": ...}, ...] in the same order,
-                               the format scripts.build_index --ids expects
-data/corpus/metadata.json      seed, sizes, source and build time
+data/corpus/profiles.jsonl              one JSON object per line, one line per profile
+data/corpus/profile_ids.json            [{"profile_id": ...}, ...] in the same order,
+                                        the format scripts.build_index --ids expects
+data/corpus/metadata.json               seed, sizes, source and build time
+data/corpus/embeddings_core.npy         float32 (size x 1024), same row order
+data/corpus/embeddings_projects.npy     idem
+data/corpus/embeddings_interests.npy    idem
+data/corpus/embeddings.json             model, dimension, NULL counts, build time
 
 Usage (from the project root; reads DATABASE_URL from .env.local, read-only):
-    python -m search_engine.corpus
+    python -m search_engine.corpus                    # profiles + embeddings
     python -m search_engine.corpus --size 10000 --seed 42
+    python -m search_engine.corpus --embeddings-only  # embeddings for the existing
+                                                      # corpus, profiles untouched
+    python -m search_engine.corpus --no-embeddings    # profiles only
 
 Reading it back:
-    from search_engine.corpus import load_corpus
-    rows = load_corpus()          # list of dicts, in file order
+    from search_engine.corpus import load_corpus, load_embeddings
+    rows = load_corpus()                  # list of dicts, in file order
+    core = load_embeddings("core")        # numpy array, row i = rows[i]
 """
 
 import argparse
@@ -72,6 +95,13 @@ COLUMNS = [
     "profile",
 ]
 FETCH_BATCH = 1000
+
+# Embedding columns in public.profile_embeddings: kind -> column name.
+EMBEDDING_KINDS = {
+    "core": "core_embedding",
+    "projects": "projects_embedding",
+    "interests": "interests_embedding",
+}
 
 # Protected attributes inside the profile JSON (profile.user). Leaving out the
 # age / desired_salary columns is not enough: the JSON holds its own copies.
@@ -152,6 +182,126 @@ def write_corpus(rows, out_dir, metadata):
     write("metadata.json", json.dumps(metadata, indent=2))
 
 
+def normalize_rows(matrix):
+    """Scale every row to length 1. All-zero rows (missing embeddings) stay zero."""
+    import numpy as np
+
+    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+    return np.divide(matrix, norms, out=np.zeros_like(matrix), where=norms > 0)
+
+
+def to_array(value):
+    """A pgvector value as a float32 numpy array (None stays None). Depending on the
+    pgvector version the adapter returns a numpy array or a pgvector Vector."""
+    import numpy as np
+
+    if value is None:
+        return None
+    if hasattr(value, "to_numpy"):
+        value = value.to_numpy()
+    return np.asarray(value, dtype=np.float32)
+
+
+def fetch_embeddings(connection, ids):
+    """Fetch the three embeddings of the given profiles, as normalized float32
+    matrices whose row i belongs to ids[i]. Returns (matrices, info)."""
+    import numpy as np
+    from pgvector.psycopg import register_vector
+
+    register_vector(connection)
+    columns = ", ".join(EMBEDDING_KINDS.values())
+    query = f"SELECT profile_id, model, {columns} FROM public.profile_embeddings WHERE profile_id = ANY(%s)"
+    rows_by_id = {}
+    for start in range(0, len(ids), FETCH_BATCH):
+        batch = ids[start:start + FETCH_BATCH]
+        for row in connection.execute(query, (batch,)).fetchall():
+            if row["profile_id"] in rows_by_id:
+                raise ValueError(f"Two embedding rows for {row['profile_id']}")
+            for column in EMBEDDING_KINDS.values():
+                row[column] = to_array(row[column])
+            rows_by_id[row["profile_id"]] = row
+
+    missing = [pid for pid in ids if pid not in rows_by_id]
+    if missing:
+        raise ValueError(f"{len(missing)} profiles have no row in profile_embeddings, e.g. {missing[:3]}")
+    models = {row["model"] for row in rows_by_id.values()}
+    if len(models) != 1:
+        raise ValueError(f"Embeddings come from more than one model: {sorted(models)}")
+
+    dimension = None
+    for row in rows_by_id.values():
+        for column in EMBEDDING_KINDS.values():
+            if row[column] is not None:
+                dimension = len(row[column])
+                break
+        if dimension:
+            break
+    if dimension is None:
+        raise ValueError("Every embedding is NULL")
+
+    matrices = {}
+    nulls = {}
+    for kind, column in EMBEDDING_KINDS.items():
+        matrix = np.zeros((len(ids), dimension), dtype=np.float32)
+        nulls[kind] = 0
+        for i, pid in enumerate(ids):
+            vector = rows_by_id[pid][column]
+            if vector is None:
+                nulls[kind] += 1
+                continue
+            if len(vector) != dimension:
+                raise ValueError(f"{pid} {column} has {len(vector)} dimensions, expected {dimension}")
+            matrix[i] = vector
+        matrices[kind] = normalize_rows(matrix)
+
+    info = {
+        "model": models.pop(),
+        "dimension": dimension,
+        "rows": len(ids),
+        "normalized": True,
+        "null_rows": nulls,
+        "files": {kind: f"embeddings_{kind}.npy" for kind in EMBEDDING_KINDS},
+        "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    return matrices, info
+
+
+def write_embeddings(matrices, info, out_dir):
+    """Write one .npy per kind plus embeddings.json (temporary file, then rename)."""
+    import numpy as np
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for kind, matrix in matrices.items():
+        target = out_dir / info["files"][kind]
+        tmp = target.with_name(target.name + ".tmp")
+        with tmp.open("wb") as file:
+            np.save(file, matrix)
+        tmp.replace(target)
+    tmp = out_dir / "embeddings.json.tmp"
+    tmp.write_text(json.dumps(info, indent=2), encoding="utf-8")
+    tmp.replace(out_dir / "embeddings.json")
+
+
+def load_embeddings(kind="core", corpus_dir=DEFAULT_DIR):
+    """Read one embedding matrix back (row i = line i of profiles.jsonl = doc_id i)."""
+    import numpy as np
+
+    path = Path(corpus_dir) / f"embeddings_{kind}.npy"
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found. Build it with: python -m search_engine.corpus --embeddings-only")
+    return np.load(path)
+
+
+def read_corpus_ids(corpus_dir=DEFAULT_DIR):
+    """The profile ids of the existing corpus, in file order."""
+    path = Path(corpus_dir) / "profile_ids.json"
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found. Build the corpus first: python -m search_engine.corpus")
+    with path.open(encoding="utf-8") as file:
+        return [row["profile_id"] for row in json.load(file)]
+
+
 def load_corpus(path=DEFAULT_DIR / "profiles.jsonl"):
     """Read the corpus back: a list of row dicts, in file order."""
     path = Path(path)
@@ -170,7 +320,21 @@ def main():
     parser.add_argument("--size", type=int, default=DEFAULT_SIZE, help=f"total profiles (default {DEFAULT_SIZE})")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help=f"random seed (default {DEFAULT_SEED})")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_DIR, help="output folder (default data/corpus)")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--embeddings-only", action="store_true",
+                       help="only snapshot the embeddings of the existing corpus (profiles untouched)")
+    group.add_argument("--no-embeddings", action="store_true", help="only snapshot the profiles")
     args = parser.parse_args()
+
+    if args.embeddings_only:
+        ids = read_corpus_ids(args.out_dir)
+        with connect() as connection:
+            connection.execute("SET TRANSACTION READ ONLY")
+            matrices, info = fetch_embeddings(connection, ids)
+        write_embeddings(matrices, info, args.out_dir)
+        print(f"Wrote {info['rows']} x {info['dimension']} embeddings ({info['model']}) to {args.out_dir}; "
+              f"NULL rows: {info['null_rows']}")
+        return
 
     judged_ids = read_judged_ids()
     with connect() as connection:
@@ -179,6 +343,8 @@ def main():
         print(f"{len(all_ids)} profiles in the database, {len(judged_ids)} judged.")
         ids = sample_ids(all_ids, judged_ids, args.size, args.seed)
         rows = fetch_rows(connection, ids)
+        if not args.no_embeddings:
+            matrices, info = fetch_embeddings(connection, ids)
 
     metadata = {
         "size": len(rows),
@@ -191,6 +357,9 @@ def main():
     }
     write_corpus(rows, args.out_dir, metadata)
     print(f"Wrote {len(rows)} profiles to {args.out_dir / 'profiles.jsonl'}")
+    if not args.no_embeddings:
+        write_embeddings(matrices, info, args.out_dir)
+        print(f"Wrote {info['rows']} x {info['dimension']} embeddings ({info['model']}); NULL rows: {info['null_rows']}")
 
 
 if __name__ == "__main__":
