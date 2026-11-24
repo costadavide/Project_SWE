@@ -191,4 +191,55 @@ class Index:
         if getattr(index, "field_stem", None) != FIELD_STEM:
             print(f"Warning: {path} was built with different stem settings; rebuild the index.")
         return index
+
+    def _common_fields(self, term_docs, doc_id):
+        fields = None
+        for term in term_docs:
+            cur_fields = self.postings[term][doc_id].keys()
+            if fields is None:
+                fields = cur_fields
+            else:
+                fields &= cur_fields
+
+            if len(fields) == 0:
+                return fields
+        return fields
+
+    def _phrase_in_field(self, term_pos, terms, doc_id, field):
+        position_set = {}
+        first_term, first_offset = term_pos[0]
+        for term in terms:
+            position_set[term] = set(self.postings[term][doc_id][field])
+
+        return any(
+            all(p + offset - first_offset in position_set[term] for term, offset in term_pos) 
+            for p in position_set[first_term]
+        )
+        
+
+    def phrase_docs(self, phrase):
+        term_pos = analyze(phrase, stem=True, query=True)
+        if not term_pos:
+            return None
+
+        term_docs = {term: self.read_term(term).keys() for term, _ in term_pos}
+        if any(not docs for docs in term_docs.values()):
+            return set()
+        rarest = min(term_docs, key=lambda t : len(term_docs[t]))
+
+        candidates = term_docs[rarest]
+        for docs in term_docs.values():
+            candidates &= docs
+            if len(candidates) == 0:
+                return set()
+
+        res = set()
+        for doc_id in candidates:
+            if any(
+                self._phrase_in_field(term_pos, term_docs.keys(), doc_id, field) 
+                for field in self._common_fields(term_docs, doc_id)
+            ):
+                res.add(doc_id)
+    
+        return res   
             
