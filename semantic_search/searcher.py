@@ -121,7 +121,13 @@ class SemanticSearcher:
             rows = np.arange(len(self.profile_ids))
 
         query_vector = self.encode(query)
-        parts = {kind: self.weights[kind] * (self.matrices[kind][rows] @ query_vector) for kind in self.weights}
+
+        parts = {}
+        for kind, weight in self.weights.items():
+            matrix = self.matrices[kind]
+            selected = matrix if allowed is None else matrix[rows]
+            parts[kind] = weight * (selected @ query_vector)
+
         scores = sum(parts.values())
 
         # best k by score, ties broken by the lower doc_id (rows are sorted, so a stable sort keeps that order)
