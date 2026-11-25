@@ -135,3 +135,68 @@ def rerank_profiles(
     results["final_rank"] = np.arange(1, len(results) + 1)
 
     return results.head(top_k).copy()
+
+
+class Reranker:
+    """Reranks the results of any searcher (SemanticSearcher, BM25, BM25F).
+
+        reranker = Reranker()
+        profiles, _ = searcher.search(query, k=50)            # retrieve a wide pool
+        profiles, details = reranker.rerank(query, profiles, texts, k=10)
+    """
+
+    def __init__(self, model_name=DEFAULT_RERANKER, fusion="rrf", rrf_k=60, batch_size=8,
+                 max_length=DEFAULT_MAX_LENGTH, model=None, device=None):
+        if fusion not in FUSION_METHODS:
+            raise ValueError(f"fusion must be one of {FUSION_METHODS}, got {fusion!r}")
+        self.model_name = model_name
+        self.fusion = fusion
+        self.rrf_k = rrf_k
+        self.batch_size = batch_size
+        self.max_length = max_length
+        self.model = model
+        self.device = device
+
+    def load_model(self):
+        """Load the cross-encoder once (first rerank), unless one was passed in."""
+        if self.model is None:
+            self.model = load_reranker(self.model_name, self.device, self.max_length)
+            # 16-bit is about 3 times faster on a GPU, but can be slow on a CPU
+            if self.model.device.type != "cpu":
+                self.model.model.half()
+        return self.model
+
+    def rerank(self, query, profiles, texts, k):
+        """Top k of the profiles, reordered by how well the cross-encoder thinks they match.
+        profiles = [(profile_id, score)] best first, as returned by search();
+        texts = {profile_id: text the cross-encoder reads}.
+        Returns (profiles, details) in the format of search(): [(profile_id, score)] best first,
+        and [(profile_id, {retrieval_rank, reranker_rank, reranker_score})]."""
+        if not profiles:
+            return [], []
+
+        ids = [profile_id for profile_id, _ in profiles]
+        pairs = [(query, texts[profile_id]) for profile_id in ids]
+        scores = self.load_model().predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
+        scores = np.asarray(scores, dtype=np.float32).reshape(-1)
+
+        # rank 1 = highest score; ties keep the retrieval order (stable sort)
+        retrieval_ranks = np.arange(1, len(ids) + 1)
+        reranker_ranks = np.empty(len(ids), dtype=int)
+        reranker_ranks[np.argsort(-scores, kind="stable")] = retrieval_ranks
+
+        if self.fusion == "rrf":
+            final = 1 / (self.rrf_k + retrieval_ranks) + 1 / (self.rrf_k + reranker_ranks)
+        else:
+            final = scores
+
+        best_k_profiles = []
+        best_k_details = []
+        for i in np.argsort(-final, kind="stable")[:k]:
+            best_k_profiles.append((ids[i], float(final[i])))
+            best_k_details.append((ids[i], {
+                "retrieval_rank": int(retrieval_ranks[i]),
+                "reranker_rank": int(reranker_ranks[i]),
+                "reranker_score": float(scores[i]),
+            }))
+        return best_k_profiles, best_k_details

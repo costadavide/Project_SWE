@@ -214,7 +214,7 @@ def fetch_embeddings(connection, ids):
     rows_by_id = {}
     for start in range(0, len(ids), FETCH_BATCH):
         batch = ids[start:start + FETCH_BATCH]
-        for row in connection.execute(query, (batch,)).fetchall():
+        for row in connection.execute(query, (batch,), binary=True).fetchall():
             if row["profile_id"] in rows_by_id:
                 raise ValueError(f"Two embedding rows for {row['profile_id']}")
             for column in EMBEDDING_KINDS.values():
