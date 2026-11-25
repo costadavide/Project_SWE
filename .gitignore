@@ -7,3 +7,4 @@ data/
 .venv-backup/
 .venv-embeddings/
 .venv-python312/
+.DS_Store
