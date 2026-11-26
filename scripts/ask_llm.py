@@ -153,8 +153,6 @@ Answer: {"requested_role": "receptionist", "semantic_query": "Receptionist fluen
 Request: Gardener who must know irrigation but not pesticides, at least 2 years of experience
 Answer: {"requested_role": "gardener", "semantic_query": "Gardener with irrigation skills and at least 2 years of experience", "hard_constraints": {"min_years_experience": 2, "required_skills": ["irrigation"], "excluded_skills": ["pesticides"]}}
 
-Request: Hi, I need a dentist
-Answer: {"requested_role": "dentist", "semantic_query": "Dentist"}
 """
 
 # The model may leave out empty fields (shorter answers are faster);
