@@ -3,17 +3,17 @@ import json
 
 from scripts.ask_llm import ask, warm_up
 from scripts.try_semantics import DIR, get_text, load_lines, print_result
-from semantic_search.filters import build_allowed, load_metadata
+from semantic_search.filters import build_allowed, load_metadata, load_skills_index
 from semantic_search.reranker import Reranker
 from semantic_search.searcher import SemanticSearcher
 
 
 POOL = 100  # profiles retrieved and given to the reranker
-K = 10      # profiles shown
-FILTERS = ("location", "min_years_experience", "max_years_experience")  # what build_allowed uses
+K = 5      # profiles shown
+FILTERS = ("location", "min_years_experience", "max_years_experience", "excluded_skills")  # what build_allowed uses
 
 
-def understand_query(query, metadata, rewrite):
+def understand_query(query, metadata, rewrite, skills_index=None):
     """Return (the text to search with, the allowed rows or None for no filter).
 
     With rewrite, the text is the query rewritten by the LLM. The original query
@@ -31,19 +31,19 @@ def understand_query(query, metadata, rewrite):
 
     constraints = answer["hard_constraints"]
     try:
-        allowed = build_allowed(metadata, constraints)
+        allowed = build_allowed(metadata, constraints, skills_index)
     except (ValueError, TypeError, AttributeError) as error:
         print(f"Warning: searching without filters ({error})")
         return text, None
 
-    filters = {name: constraints[name] for name in FILTERS if constraints[name] is not None}
+    filters = {name: constraints[name] for name in FILTERS if constraints[name] not in (None, [])}
     left = len(metadata) if allowed is None else len(allowed)
     print(f"Filters: {filters or 'none'} -> {left:,} of {len(metadata):,} profiles")
     return text, allowed
 
 
-def run_query(searcher, reranker, lines, metadata, query, k, rewrite=False):
-    text, allowed = understand_query(query, metadata, rewrite)
+def run_query(searcher, reranker, lines, metadata, query, k, rewrite=False, skills_index=None):
+    text, allowed = understand_query(query, metadata, rewrite, skills_index)
     if allowed is not None and not allowed:
         print("No profile passes these filters.")
         return
@@ -77,6 +77,7 @@ def main():
     warm_up()  # the LLM
     lines = load_lines()
     metadata = load_metadata(DIR / "profiles.jsonl")
+    skills_index = load_skills_index(DIR / "profiles.jsonl")
 
     while True:
         query = input("\nQuery (or 'exit'): ").strip()
@@ -84,7 +85,7 @@ def main():
             break
         if not query:
             continue
-        run_query(searcher, reranker, lines, metadata, query, k=K, rewrite=args.rewrite)
+        run_query(searcher, reranker, lines, metadata, query, k=K, rewrite=args.rewrite, skills_index=skills_index)
 
 
 if __name__ == "__main__":

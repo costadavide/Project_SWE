@@ -1,4 +1,7 @@
 import json
+from pathlib import Path
+
+from search_engine.index import Index
 
 STATES = {
     "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR", "california": "CA",
@@ -102,7 +105,54 @@ def filter_by_place(metadata, city=None, state=None):
     return allowed 
 
 
-def build_allowed(metadata, constraints):
+def build_skills_index(path):
+    """Ale's Index (search_engine/index.py) built from the skills only.
+    doc_id i is row i of the embeddings, like the metadata."""
+    def skills_only():
+        with open(path, encoding="utf-8") as file:
+            for line in file:
+                row = json.loads(line)
+                skills = row["profile"]["user"].get("skills") or []
+                yield {"profile_id": row["profile_id"], "profile": {"user": {"skills": skills}}}
+
+    return Index(skills_only())
+
+
+def load_skills_index(path, saved_path=None):
+    """Load the skills index saved next to the profiles, or build and save it.
+    It is built again when the profiles file is newer than the saved index,
+    because then its rows may no longer match the embeddings."""
+    path = Path(path)
+    saved_path = Path(saved_path) if saved_path else path.parent / "skills_index.pkl"
+
+    if saved_path.exists() and saved_path.stat().st_mtime >= path.stat().st_mtime:
+        return Index.load(saved_path)
+
+    print(f"Building the skills index (saved to {saved_path} for next time)...")
+    index = build_skills_index(path)
+    index.save(saved_path)
+    return index
+
+
+def filter_by_skills(skills_index, excluded):
+    """Return the rows whose skills contain none of the excluded skills (None = no filter).
+    phrase_docs analyzes the skill like the index does, so "Python" also
+    matches "Python 3" and "Python scripting", but "C" does not match "C++"."""
+    if isinstance(excluded, str):
+        excluded = [excluded]
+    excluded = [skill for skill in excluded or [] if isinstance(skill, str) and skill.strip()]
+    if not excluded:
+        return None
+
+    allowed = set(range(len(skills_index)))
+    for skill in excluded:
+        rows = skills_index.phrase_docs(skill)  # None if the skill is only stopwords
+        if rows:
+            allowed -= rows
+    return allowed
+
+
+def build_allowed(metadata, constraints, skills_index=None):
     min_years = max_years = None
     if constraints["min_years_experience"] is not None:
         min_years = int(constraints["min_years_experience"])
@@ -114,8 +164,14 @@ def build_allowed(metadata, constraints):
     city, state = find_place(constraints["location"])
     allowed_place = filter_by_place(metadata, city, state)
 
-    if allowed_years is None:
-        return allowed_place
-    if allowed_place is None:
-        return allowed_years
-    return allowed_years & allowed_place
+    allowed_skills = None
+    if skills_index is not None:
+        allowed_skills = filter_by_skills(skills_index, constraints["excluded_skills"])
+
+    # keep the rows that pass every filter; None means that filter was not used
+    allowed = None
+    for rows in (allowed_years, allowed_place, allowed_skills):
+        if rows is None:
+            continue
+        allowed = rows if allowed is None else allowed & rows
+    return allowed
