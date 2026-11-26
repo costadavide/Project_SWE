@@ -1,7 +1,8 @@
 """Evaluate search methods on the 16 graded queries over the 1,000 judged profiles.
 
-Methods: bm25, bm25f, semantic (core embedding only) and semantic_weighted
-(core 0.80 / projects 0.15 / interests 0.05), all run by default.
+Methods: bm25, bm25f, semantic (core embedding only), semantic_weighted
+(core 0.80 / projects 0.15 / interests 0.05) and fusion_rrf (reciprocal rank
+fusion of bm25 + semantic, search_engine/fusion.py), all run by default.
 Every method is anything with search(query, k, allowed) returning
 (profiles, breakdowns), where profiles = [(profile_id, score), ...] best first,
 like BM25 and BM25F in search_engine/bm25.py. A semantic searcher or a fusion
@@ -42,7 +43,7 @@ JUDGED_IDS_PATH = project_root / "tests" / "retrieval_1000" / "profile_ids.json"
 DEFAULT_OUTPUT = project_root / "data" / "results" / "evaluate_methods.json"
 K = 10
 MAIN_METRIC = f"NDCG@{K}"
-AVAILABLE_METHODS = ["bm25", "bm25f", "semantic", "semantic_weighted"]
+AVAILABLE_METHODS = ["bm25", "bm25f", "semantic", "semantic_weighted", "fusion_rrf"]
 # test_embeddings.py's "weighted" mode
 SEMANTIC_WEIGHTS = {"core": 0.80, "projects": 0.15, "interests": 0.05}
 
@@ -78,15 +79,17 @@ def judged_doc_ids(index, path=JUDGED_IDS_PATH):
 
 
 def build_methods(index, names=None):
-    """name -> searcher, for the requested names (None = all). Add fusion here once it
-    has the same search(). The semantic searchers share one model, loaded once."""
+    """name -> searcher, for the requested names (None = all). The semantic searchers
+    share one model, loaded once; fusion_rrf reuses the same bm25 and semantic objects."""
     names = names or AVAILABLE_METHODS
     methods = {}
+    needs_semantic = any(name.startswith("semantic") for name in names) or "fusion_rrf" in names
+    bm25 = BM25(index) if "bm25" in names or "fusion_rrf" in names else None
     if "bm25" in names:
-        methods["bm25"] = BM25(index)
+        methods["bm25"] = bm25
     if "bm25f" in names:
         methods["bm25f"] = BM25F(index)
-    if any(name.startswith("semantic") for name in names):
+    if needs_semantic:
         from semantic_search.searcher import SemanticSearcher
 
         semantic = SemanticSearcher()
@@ -95,6 +98,11 @@ def build_methods(index, names=None):
             methods["semantic"] = semantic
         if "semantic_weighted" in names:
             methods["semantic_weighted"] = SemanticSearcher(weights=SEMANTIC_WEIGHTS, model=semantic.load_model())
+    if "fusion_rrf" in names:
+        from search_engine.fusion import Fusion
+
+        # the key "semantic" matters: Fusion breaks ties on the semantic rank
+        methods["fusion_rrf"] = Fusion({"bm25": bm25, "semantic": semantic}, method="rrf")
     return methods
 
 
@@ -195,8 +203,10 @@ def load_titles():
 def method_settings(searcher):
     """The parameters of a method, saved with the results so runs can be compared."""
     settings = {key: value for key, value in vars(searcher).items()
-                if key in ("k1", "b", "w", "weights", "query_prompt", "model_name")
+                if key in ("k1", "b", "w", "weights", "query_prompt", "model_name", "method", "rrf_k", "depth")
                 and isinstance(value, (int, float, dict, str))}
+    if hasattr(searcher, "searchers"):  # fusion: which methods it combines
+        settings["searchers"] = list(searcher.searchers)
     return settings
 
 
