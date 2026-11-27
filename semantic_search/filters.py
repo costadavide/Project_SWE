@@ -106,20 +106,20 @@ def filter_by_place(metadata, city=None, state=None):
 
 
 def build_skills_index(path):
-    """Ale's Index (search_engine/index.py) built from the skills only.
+    """Ale's Index (search_engine/index.py) built from the full profile rows,
+    the same index the lexical search uses (lexical.pkl).
     doc_id i is row i of the embeddings, like the metadata."""
-    def skills_only():
+    def full_rows():
         with open(path, encoding="utf-8") as file:
             for line in file:
-                row = json.loads(line)
-                skills = row["profile"]["user"].get("skills") or []
-                yield {"profile_id": row["profile_id"], "profile": {"user": {"skills": skills}}}
+                if line.strip():
+                    yield json.loads(line)
 
-    return Index(skills_only())
+    return Index(full_rows())
 
 
 def load_skills_index(path, saved_path=None):
-    """Load the skills index saved next to the profiles, or build and save it.
+    """Load the full index saved next to the profiles (lexical.pkl), or build and save it.
     It is built again when the profiles file is newer than the saved index,
     because then its rows may no longer match the embeddings."""
     path = Path(path)
@@ -128,14 +128,16 @@ def load_skills_index(path, saved_path=None):
     if saved_path.exists() and saved_path.stat().st_mtime >= path.stat().st_mtime:
         return Index.load(saved_path)
 
-    print(f"Building the skills index (saved to {saved_path} for next time)...")
+    print(f"Building the full index (saved to {saved_path} for next time)...")
     index = build_skills_index(path)
     index.save(saved_path)
     return index
 
 
 def filter_by_skills(skills_index, excluded):
-    """Return the rows whose skills contain none of the excluded skills (None = no filter).
+    """Return the rows whose profile text mentions none of the excluded skills (None = no filter).
+    The skill is searched in every indexed field (titles, skills, summary, education,
+    certifications), not only in the skills list.
     phrase_docs analyzes the skill like the index does, so "Python" also
     matches "Python 3" and "Python scripting", but "C" does not match "C++"."""
     if isinstance(excluded, str):

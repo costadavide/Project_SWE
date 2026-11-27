@@ -1,154 +1,268 @@
-# Software Engineering Project
+# People Search Engine
 
-Semantic search over professional profiles using Qwen embeddings and cosine similarity.
+A search engine over about 248,000 professional profiles. You type a request in
+plain language, such as _"ICU nurse in Ohio with at least 5 years of experience"_,
+and it returns the best-matching profiles, with the scores that put them there.
 
-## Folder structure
+It combines three parts:
 
-- `semantic_search/`: reusable functions, including profile-to-text conversion.
-- `scripts/`: database import and interactive search scripts.
-- `data/`: local profile samples and embeddings for future use (ignored by Git).
-- `.env.local`: local database connection settings (ignored by Git).
+- a **local LLM** that reads the request, rewrites it as a clean search query and
+  pulls out hard constraints (location, years of experience, skills to exclude);
+- **retrieval**, by embeddings (semantic search), optionally fused with a
+  classic BM25 lexical index;
+- a **cross-encoder reranker** that reorders the best candidates.
 
-## Run the search prototype
+## How a search works
 
-From the project root, activate the environment and run:
+```
+query ──► LLM (LM Studio) ──► rewritten query + filters
+                                   │
+                                   ▼
+             filters ──► allowed profiles (location, years, excluded skills)
+                                   │
+                                   ▼
+         retrieval: semantic search (default) or BM25 + semantic fused with RRF
+                                   │  top POOL profiles (default 100)
+                                   ▼
+             reranker (BAAI/bge-reranker-v2-m3) reads the original query
+                                   │
+                                   ▼
+                          top K profiles shown (default 5)
+```
+
+1. **Query understanding** (`scripts/ask_llm.py`). The query goes to a small
+   model (`qwen/qwen3-1.7b`) served by LM Studio. It returns JSON with a rewritten
+   `semantic_query` and `hard_constraints`. If LM Studio is not running, the
+   query is searched as typed, with no filters.
+2. **Filters** (`semantic_search/filters.py`). `build_allowed` turns the
+   constraints into the set of profiles that may be returned: city and/or state,
+   minimum and maximum years of experience, and excluded skills. An excluded
+   skill is looked up as a phrase in the lexical index, so it removes every
+   profile that mentions it in any indexed field (titles, skills, summary,
+   education, certifications), not only in the skills list. "Python" also
+   excludes "Python 3", but "C" does not exclude "C++".
+3. **Retrieval.**
+   - _Semantic_ (`semantic_search/searcher.py`): each profile has three
+     embeddings made with `Qwen/Qwen3-Embedding-0.6B`, one for the core profile,
+     one for projects and one for career interests. A profile's score is
+     `0.80 × core + 0.15 × projects + 0.05 × interests` cosine similarity.
+   - _Lexical_ (`search_engine/`): a positional inverted index over six fields
+     (current title, past titles, skills, summary, education, certifications),
+     scored with BM25 or BM25F.
+   - _Fusion_ (`search_engine/fusion.py`): Reciprocal Rank Fusion of the
+     lexical and semantic top 200.
+4. **Reranking** (`semantic_search/reranker.py`). The cross-encoder reads the
+   query together with each candidate's text and gives the final order.
+
+Protected and filter-style attributes (age, ethnicity, legal status,
+sponsorship, salary) are never embedded or indexed, and are removed from the
+local snapshot.
+
+## Project layout
+
+| Folder                  | Contents                                                                                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/`              | Command-line entry points: data import, embedding, the search CLI, evaluation and experiments (`try_*.py`). Shared search settings are in `scripts/config.py`. |
+| `semantic_search/`      | Profile-to-text conversion, the semantic searcher, filters and the reranker.                                                                                   |
+| `search_engine/`        | The lexical engine: corpus snapshot, analyzer, fields, inverted index, BM25/BM25F, fusion and metrics.                                                         |
+| `tests/`, `evaluation/` | Graded test queries and their results.                                                                                                                         |
+| `data/`                 | Local snapshot, embeddings and indexes. Not in Git.                                                                                                            |
+| `.env.local`            | Database connection string. Not in Git.                                                                                                                        |
+
+## 1. Setup
+
+From the project root:
 
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
-python -m scripts.inspect_profile
+pip install -r requirements.txt
 ```
 
-The script reads up to 100 profiles (one known photographer plus 99 random
-profiles), generates their embeddings, and accepts repeated queries. Enter
-`exit` to stop. Each new run selects a new random sample and regenerates embeddings.
+Create `.env.local` with the connection string of the PostgreSQL database
+(AWS RDS).
 
-`profile_to_text()` sorts employment history by date (ongoing jobs first, then
-newest start date), includes the user's city and state, and leaves out
-protected and filter-style fields (age, ethnicity, legal status, sponsorship,
-salary), company names, job locations, work location preferences and stated
-career interests (what someone wants to do is not a qualification). Rebuild
-the index after changing it.
+## 2. Get the data
 
-`experience_to_text()` builds a second text from the job history only (titles
-and descriptions). `build_index` embeds both, and search ranks profiles by
-`0.7 × full-profile similarity + 0.3 × experience similarity` (the weight is
-`experience_weight` in `index_metadata.json`; see `semantic_search/scoring.py`).
-This puts people already doing a job above career changers whose skills match
-but whose jobs do not. The experience score knows nothing about skills,
-certifications or location, so a higher weight weakens those signals. Indexes
-built before this change have no `experience_embeddings.npy` and are ranked by
-full-profile similarity only.
+The search engine never queries the database while searching. It reads a local
+snapshot, `data/full/` by default, which you build once with the steps below. Every
+command runs from the project root with the virtual environment active.
 
-Build a larger random index in its own folder with
-`python -m scripts.build_index --sample-size 1000 --data-dir data/sample_1000`.
+### 2.1 Profiles and embeddings in the database (usually already done)
 
-## Evaluate the saved index
-
-With `data/profiles.json`, `data/embeddings.npy` and `data/index_metadata.json`
-in place (created by `python -m scripts.build_index`), run from the project root:
+The shared database already holds 248,522 profiles in `people` and their
+vectors in `profile_embeddings`. Skip to 2.2 unless you are setting up a new
+database.
 
 ```bash
-source .venv/bin/activate
-python -m scripts.evaluate
+python -m scripts.seed_people 20000   # download the akzaidan/People dataset
+                                      # (Hugging Face) and insert a random sample
+python -m scripts.embed_people        # embed every profile that has no vectors yet
 ```
 
-The script does not rebuild the index or contact the database. It checks that
-profiles and vectors line up and that every case in `evaluation/cases.json`
-has a unique ID and an intended profile present in the index. It then embeds
-each query with the same instruction and normalization as `scripts/search.py`.
-
-Each case is one query written from one saved profile, tagged with a query
-type: `direct` (role and key skills), `paraphrase` (the same need in plain
-words), `profile_details` (needs information beyond the role and skills, such
-as certifications, bio, earlier roles, or the most recent role by date) or
-`location` (a role that appears more than once, told apart by city and state). The
-script prints, per case, the rank and cosine similarity of the intended
-profile, then two summary numbers overall and per query type:
-
-- **Hit rate@5**: fraction of queries whose intended profile is in the top five.
-- **MRR@5**: mean of 1/rank for the intended profile, counting 0 when it is
-  outside the top five (1.0 means it always ranked first).
-
-Full results, including each query's top five profile IDs and scores, are
-written to `evaluation/results/intended_profile_results.json` (change with
-`--output`). Use `--data-dir` to evaluate another saved index.
-
-This is a sanity test, not a relevance benchmark. Other profiles in the top
-five may also be good matches (for example, a nurse manager for a nursing
-query), so they are not counted as errors and no Precision@5 is reported.
-The cases only apply to an index containing their intended profiles: a plain
-`build_index` run samples new random profiles and the script will stop with
-an error. To rebuild with the same profiles (for example after changing
-`profile_to_text()`), run:
+`embed_people` takes several hours for the whole table. Useful options:
 
 ```bash
-python -m scripts.build_index --ids data/profiles.json
-```
-
-## Graded test on 1000 profiles
-
-`tests/retrieval_1000/` holds a stricter test on a fixed set of 1000 profiles
-(`profile_ids.json`). For each of its 16 queries (13 `direct`, 2 `paraphrase`,
-1 `location`), every one of the 1000 profiles was reviewed and graded in
-`judgments.json`: 2 = clearly relevant (already does this kind of work),
-1 = partially relevant (adjacent role, or a career changer trained for the
-role who has not held it), unlisted = 0. Each query has a note explaining the
-harder grading decisions.
-
-Build the index for this profile set once (and again after changing
-`profile_to_text()` or `experience_to_text()`), then run the test:
-
-```bash
-python -m scripts.build_index --ids tests/retrieval_1000/profile_ids.json --data-dir data/sample_1000
-python -m tests.evaluate_retrieval_1000
-```
-
-Use `--data-dir` for another index built from the same IDs and
-`--experience-weight 0.2` (for example) to try another weight without
-rebuilding. The script stops with an error if the index holds a different set
-of profiles, because unlisted profiles count as not relevant. It prints, per
-query and overall:
-
-- **nDCG@10**: quality of the whole top 10, using the grades (1.0 = the best
-  possible order of the graded profiles).
-- **MRR@10**: 1/rank of the first grade-2 profile.
-- **P@5**: fraction of the top five with grade 1 or 2.
-- **R@10**: fraction of the grade-2 profiles that appear in the top 10.
-
-Full results are written to `tests/retrieval_1000/results/latest.json`. The
-grades were made by one reviewer and only apply to this profile set; new
-queries must be graded against all 1000 profiles by hand.
-
-## Embed the whole database
-
-```bash
-python -m scripts.embed_people              # embed what is still missing
 python -m scripts.embed_people --status     # show progress, change nothing
 python -m scripts.embed_people --limit 500  # at most 500 profiles, then stop
 python -m scripts.embed_people --refresh    # also redo profiles whose text changed
 ```
 
-This embeds the three texts of `text_generation()` (core, projects and
-interests, without the seed role) with `Qwen/Qwen3-Embedding-0.6B` and saves
-them in the `profile_embeddings` table, one row per profile. A vector is NULL
-when the profile has no such text (for example, no projects).
+Press Ctrl+C to stop after the current batch (256 profiles) is saved, and run
+the same command again to continue. On a Mac,
+`caffeinate -i python -m scripts.embed_people` keeps the computer awake.
 
-Press Ctrl+C to stop after the current batch is saved, and run the same command
-again to continue. A crash loses at most one batch (256 profiles). Use
-`--refresh` after changing `semantic_search/profile_text.py`. On a Mac,
-`caffeinate -i python -m scripts.embed_people` stops it from sleeping meanwhile.
-
-Vectors have unit length and were encoded without a prompt. Encode search
-queries with the same model and `prompt_name="query"`: leaving it out lowers
-the ranking quality a lot.
-
-## Import profiles
-
-From the project root:
+### 2.2 Download the snapshot
 
 ```bash
-python -m scripts.seed_people 20000
+python -m search_engine.corpus --all
 ```
 
-This downloads the source dataset and inserts profiles into the PostgreSQL database (AWS RDS). Configure
-`DATABASE_URL` in `.env.local` before running either script (`DATABASE_URL_UNPOOLED`, if set, takes precedence).
+This reads every profile and its three embeddings (read-only) and writes:
+
+```
+data/full/profiles.jsonl            one profile per line (~800 MB)
+data/full/profile_ids.json          the profile IDs in the same order
+data/full/embeddings_core.npy       float32, one row per profile (~1 GB each)
+data/full/embeddings_projects.npy
+data/full/embeddings_interests.npy
+data/full/embeddings.json           model, dimension, missing-vector counts
+data/full/metadata.json             sizes and build time
+```
+
+Plan for about 4 GB of disk. Row _i_ of every file is the same profile, which
+is how the lexical and semantic parts stay aligned. The 1,000 judged profiles
+of the tests come first.
+
+`--no-embeddings` and `--embeddings-only` fetch only one of the two parts.
+
+#### Only 10,000 profiles instead
+
+If you do not need the whole database (less disk, faster start), fetch the
+smaller corpus instead:
+
+```bash
+python -m search_engine.corpus        # 10,000 profiles into data/corpus/
+```
+
+It holds the 1,000 judged profiles plus 9,000 sampled with seed 42, in the same
+file format as `data/full/`. The search engine reads `data/full/` by default,
+so point it at the new folder by changing `DIR` in `scripts/config.py`:
+
+```python
+DIR = PROJECT_ROOT / "data" / "corpus"
+```
+
+`INDEX_PATH` follows `DIR`, so the lexical index then lives in
+`data/corpus/lexical.pkl`. Change `DIR` back to `data/full` to search the whole
+database again.
+
+### 2.3 The lexical index
+
+`lexical.pkl`, in the snapshot folder (`DIR`), is one inverted index over the
+full profiles. It serves both the excluded-skills filter and the BM25 side of
+fusion mode.
+
+You do not have to build it by hand: the first run of `scripts.search_cli`
+builds it from `profiles.jsonl` and saves it for later runs. It is built again
+automatically when `profiles.jsonl` is newer than the saved index, so a new
+snapshot never meets an old index. On the full corpus this first build takes a
+while and needs several GB of RAM.
+
+### 2.4 Start the LLM
+
+1. Install [LM Studio](https://lmstudio.ai) and download the model
+   `qwen/qwen3-1.7b`.
+2. Load it and start the local server on the default port (`http://localhost:1234`).
+
+You can check it with `python -m scripts.ask_llm "nurse in Texas, not Python"`,
+which prints the JSON the search engine receives. The model name and URL are
+at the top of `scripts/ask_llm.py`.
+
+The embedding model (about 1.2 GB) and the reranker (about 2.3 GB) are
+downloaded from Hugging Face on the first search and cached afterwards.
+
+## 3. Run the search engine
+
+```bash
+python -m scripts.search_cli
+```
+
+After loading, it asks for queries until you type `exit`. It first shows what
+the LLM understood, for example (the exact wording depends on the model):
+
+```
+Query (or 'exit'): registered nurse in Ohio with at least 5 years of experience, no pediatrics
+Rewritten query: Registered nurse with at least 5 years of experience
+Filters: {'location': 'Ohio', 'min_years_experience': 5, 'excluded_skills': ['pediatrics']} -> <n> of 248,522 profiles
+```
+
+For each result it prints the profile ID, its rank before reranking, the
+reranker score, the retrieval scores and the profile text. With the
+10,000-profile corpus the filter line counts out of 10,000 instead.
+
+### Options
+
+| Flag                       | Effect                                                         |
+| -------------------------- | -------------------------------------------------------------- |
+| `--retrieval fusion`       | BM25 + embeddings fused with RRF, instead of embeddings only   |
+| `--lexical bm25f`          | use BM25F in the fusion (only with `--retrieval fusion`)       |
+| `--query original`         | retrieve with the original query instead of the rewritten one  |
+| `--rerank-query rewritten` | the reranker reads the rewritten query instead of the original |
+| `--no-rerank`              | show the retrieval order, without the reranker                 |
+| `--no-llm`                 | do not call the LLM: original query, no filters                |
+| `--k 10`                   | number of profiles shown (default 5)                           |
+| `--pool 200`               | profiles retrieved and given to the reranker (default 100)     |
+
+Defaults for these, the semantic weights and the snapshot folder (`DIR`, see
+section 2.2) are in `scripts/config.py`. `TEXT_OPTIONS` there must match the one in
+`scripts/embed_people.py`, since the reranker reads the same text the
+embeddings were made from.
+
+## 4. Evaluation
+
+Two sets of graded queries measure the ranking.
+
+**Method comparison** (`scripts/evaluate_methods.py`). Runs BM25, BM25F,
+semantic, weighted semantic and fusion on the 16 graded queries in
+`tests/retrieval_1000/judgments.json`, ranking only the 1,000 judged profiles
+(any unjudged profile would count as not relevant). It needs the 10,000-profile
+corpus and its index:
+
+```bash
+python -m search_engine.corpus        # data/corpus/
+python -m scripts.try_index           # data/index/lexical.pkl
+python -m scripts.evaluate_methods
+python -m scripts.evaluate_methods --methods bm25f semantic --show-top 3
+```
+
+It prints NDCG@10, MRR@10, P@5, R@10 and p50/p95 latency per method and per
+query type, and saves the details to `data/results/evaluate_methods.json`.
+
+- **NDCG@10**: quality of the whole top 10 using the grades (1.0 = best possible order).
+- **MRR@10**: 1 / rank of the first clearly relevant profile.
+- **P@5**: share of the top five that is relevant or partially relevant.
+- **R@10**: share of the clearly relevant profiles found in the top 10.
+
+In `judgments.json`, 2 = clearly relevant (already does this kind of work),
+1 = partially relevant (adjacent role, or trained for it without having held
+it), unlisted = 0. The grades were made by one reviewer, and new queries must
+be graded against all 1,000 profiles by hand.
+
+**Earlier prototype.** `scripts/build_index.py`, `scripts/inspect_profile.py`,
+`scripts/evaluate.py` and `tests/evaluate_retrieval_1000.py` belong to the
+first version, which embedded a small sample into `data/` and scored
+`0.7 × full profile + 0.3 × experience`. They still run:
+
+```bash
+python -m scripts.build_index --ids tests/retrieval_1000/profile_ids.json --data-dir data/sample_1000
+python -m tests.evaluate_retrieval_1000
+python -m scripts.evaluate        # rank of one intended profile per case in evaluation/cases.json
+```
+
+## Experiments
+
+The `scripts/try_*.py` files are the steps that led to `search_cli.py`, and
+each one matches a set of `search_cli` flags (listed at the top of
+`scripts/search_cli.py`). `try_index.py --toy` prints a full index for three
+hand-made profiles, which is a quick way to see what the lexical engine stores.
