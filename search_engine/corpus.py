@@ -49,8 +49,7 @@ columns as numpy arrays instead of '[0.05, -0.06, ...]' strings.
 Output (data/ is not in Git)
 ----------------------------
 data/corpus/profiles.jsonl              one JSON object per line, one line per profile
-data/corpus/profile_ids.json            [{"profile_id": ...}, ...] in the same order,
-                                        the format scripts.build_index --ids expects
+data/corpus/profile_ids.json            [{"profile_id": ...}, ...] in the same order
 data/corpus/metadata.json               seed, sizes, source and build time
 data/corpus/embeddings_core.npy         float32 (size x 1024), same row order
 data/corpus/embeddings_projects.npy     idem
