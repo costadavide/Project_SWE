@@ -43,7 +43,7 @@ Rules:
 - Do not invent qualifications, skills, or requirements.
 - Do not add synonyms or related skills unless clearly implied by the request.
 - Keep relevant professional attributes in the semantic query even when they also appear in structured constraints.
-- Leave exclusions out of the semantic query, such as companies, skills or places the user does not want. Put them only in hard_constraints.
+- Leave exclusions out of the semantic query, such as companies, skills or places the user does not want. You must put them only in hard_constraints.
 - Write the rewritten query in English, regardless of the input language.
 
 ### 2. HARD CONSTRAINT EXTRACTION
@@ -99,7 +99,7 @@ Rules:
 When a requirement is ambiguous, preserve its meaning without inventing a precise interpretation.
 
 Examples:
-- "Senior developer" does not automatically mean 5+ years of experience.
+- "Senior Software engineer" keeps the word "Senior" in requested_role and semantic_query, but does not set min_years_experience.
 - "Experienced in Python" does not imply a specific number of years.
 - "Near Milan" should not be converted into an arbitrary distance radius.
 - "Backend engineer" does not necessarily imply a current job title.
@@ -110,7 +110,6 @@ Return ONLY valid JSON matching the following structure:
 
 {
   "requested_role": "string",
-  "semantic_query": "string",
   "hard_constraints": {
     "location": null,
     "excluded_locations": [],
@@ -124,6 +123,7 @@ Return ONLY valid JSON matching the following structure:
     "current_company": null,
     "excluded_companies": []
   },
+  "semantic_query": "string",
   "soft_preferences": []
 }
 
