@@ -1,17 +1,10 @@
 import argparse
 import json
 import time
-from pathlib import Path
-from scripts.embed_people import TEXT_OPTIONS
+from scripts.config import DIR, K, POOL, TEXT_OPTIONS, WEIGHTS
 from semantic_search.profile_text import text_generation
 from semantic_search.searcher import SemanticSearcher
 from semantic_search.reranker import Reranker
-
-
-project_root = Path(__file__).resolve().parent.parent
-DIR = project_root / "data" / "full"
-POOL = 100  # profiles retrieved and given to the reranker
-K = 10      # profiles shown
 
 
 def load_lines():
@@ -64,10 +57,7 @@ def run_query(searcher, lines, query, k, reranker=None):
 
 def main():
     print("Loading...")
-    weights = {"core": 0.80,
-        "projects": 0.15,
-        "interests": 0.05,}
-    searcher = SemanticSearcher(DIR, weights=weights)
+    searcher = SemanticSearcher(DIR, weights=WEIGHTS)
     reranker = Reranker()
     reranker.load_model()
     searcher.load_model()

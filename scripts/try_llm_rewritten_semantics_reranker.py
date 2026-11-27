@@ -9,8 +9,9 @@ Run from the project root, with LM Studio on:
 import json
 
 from scripts.ask_llm import warm_up
-from scripts.try_llm_semantics_reranker import K, POOL, understand_query
-from scripts.try_semantics import DIR, get_text, load_lines, print_result
+from scripts.config import DIR, K, POOL, WEIGHTS
+from scripts.try_llm_semantics_reranker import understand_query
+from scripts.try_semantics import get_text, load_lines, print_result
 from semantic_search.filters import load_metadata, load_skills_index
 from semantic_search.reranker import Reranker
 from semantic_search.searcher import SemanticSearcher
@@ -37,10 +38,7 @@ def run_query(searcher, reranker, lines, metadata, query, k, skills_index=None):
 
 def main():
     print("Loading...")
-    weights = {"core": 0.80,
-        "projects": 0.15,
-        "interests": 0.05,}
-    searcher = SemanticSearcher(DIR, weights=weights)
+    searcher = SemanticSearcher(DIR, weights=WEIGHTS)
     reranker = Reranker()
     reranker.load_model()
     searcher.load_model()

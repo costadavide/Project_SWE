@@ -123,7 +123,7 @@ def load_skills_index(path, saved_path=None):
     It is built again when the profiles file is newer than the saved index,
     because then its rows may no longer match the embeddings."""
     path = Path(path)
-    saved_path = Path(saved_path) if saved_path else path.parent / "skills_index.pkl"
+    saved_path = Path(saved_path) if saved_path else path.parent / "lexical.pkl"
 
     if saved_path.exists() and saved_path.stat().st_mtime >= path.stat().st_mtime:
         return Index.load(saved_path)

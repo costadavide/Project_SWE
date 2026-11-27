@@ -30,9 +30,9 @@ import argparse
 import json
 
 from scripts.ask_llm import warm_up
-from scripts.embed_people import TEXT_OPTIONS
-from scripts.try_llm_semantics_reranker import K, POOL, understand_query
-from scripts.try_semantics import DIR, get_text, load_lines
+from scripts.config import DEPTH, DIR, INDEX_PATH, K, POOL, TEXT_OPTIONS, WEIGHTS
+from scripts.try_llm_semantics_reranker import understand_query
+from scripts.try_semantics import get_text, load_lines
 from search_engine.bm25 import BM25, BM25F
 from search_engine.fusion import Fusion
 from search_engine.index import Index
@@ -40,10 +40,6 @@ from semantic_search.filters import load_metadata, load_skills_index
 from semantic_search.profile_text import text_generation
 from semantic_search.reranker import Reranker
 from semantic_search.searcher import SemanticSearcher
-
-
-INDEX_PATH = DIR / "lexical.pkl"
-DEPTH = 200  # profiles each method gives to the fusion
 
 
 def print_result(rank, score, ranks, methods, row, reranked=None):
@@ -97,10 +93,7 @@ def main():
 
     print("Loading...")
     index = Index.load(INDEX_PATH)
-    weights = {"core": 0.80,
-        "projects": 0.15,
-        "interests": 0.05,}
-    semantic = SemanticSearcher(DIR, weights=weights)
+    semantic = SemanticSearcher(DIR, weights=WEIGHTS)
     semantic.check_alignment(index)  # doc_id i in the index = row i of the embeddings
     semantic.load_model()
     if args.lexical == "bm25":

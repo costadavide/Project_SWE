@@ -1,18 +1,83 @@
-"""Snapshot of the working corpus, written once so later steps never query the database.
+"""Build and read the fixed working corpus: a snapshot of 10,000 profiles.
 
-Profiles: the 1,000 judged profiles (tests/retrieval_1000) first, then a seeded
-random sample of the others (default 10,000 in total, seed 42). Protected keys
-in the profile JSON are removed. Embeddings (core, projects, interests) come
-from public.profile_embeddings, normalized, with NULL stored as a zero row.
-Line i of every output is the same profile, which is also doc_id i in the
-lexical index.
+The corpus is the one set of profiles that every method uses: the lexical
+index, the embeddings, learning-to-rank and the evaluation. It is written to
+disk once, so later steps never touch the database again and always see
+exactly the same profiles in exactly the same order.
 
-Output (data/corpus/): profiles.jsonl, profile_ids.json, metadata.json,
-embeddings_{core,projects,interests}.npy, embeddings.json.
+Which profiles
+--------------
+- all 1,000 profiles in tests/retrieval_1000/profile_ids.json, so the graded
+  judgments stay valid;
+- plus 9,000 other profiles chosen at random with a fixed seed.
 
-Usage (from the project root, DATABASE_URL in .env.local, read-only):
-    python -m search_engine.corpus [--size N] [--seed S] [--out-dir DIR]
-    python -m search_engine.corpus --embeddings-only   # or --no-embeddings
+Reproducible sampling: all other profile IDs are fetched, sorted, and sampled
+with random.Random(seed). Sorting first means the result does not depend on
+the order the database returns rows in, so the same seed gives the same
+profiles on any machine and any PostgreSQL server holding the same table.
+(SQL ORDER BY random() cannot be seeded reliably, so it is not used.)
+
+Order in the file: the 1,000 judged profiles first (in profile_ids.json
+order), then the 9,000 sampled ones sorted by profile_id.
+
+Which columns
+-------------
+profile_id, profile (the JSON), the filter columns job_family, seniority,
+city, state, experience_years, and seed_role and cohort. seed_role is needed
+to build weak training labels for learning-to-rank and cohort is handy for
+analysis; neither is ever indexed. Protected or useless columns (age,
+desired_salary, the duplicate skills column, created_at) are not read at all,
+and the protected keys inside the profile JSON (user.age, user.desired_salary,
+user.ethnicity, user.legal_status, user.sponsorship_needed) are removed
+before writing. user.skills stays: fields.py reads the skills from there.
+
+Embeddings
+----------
+The teammate's table public.profile_embeddings holds, for every profile, three
+pgvector columns (core_embedding, projects_embedding, interests_embedding) made
+with one model (Qwen/Qwen3-Embedding-0.6B). They are snapshotted too, so the
+semantic searcher never touches the database either:
+- row i of each matrix is the profile on line i of profiles.jsonl, which is
+  doc_id i in the lexical index: the two methods are aligned by construction;
+- every row is normalized to length 1 (normalizing an already normalized
+  vector changes nothing), so cosine similarity is a dot product;
+- a NULL embedding (e.g. a profile with no projects) is stored as a row of
+  zeros: it scores 0 against every query. The counts are in embeddings.json.
+The pgvector adapter (pip install pgvector) makes psycopg return vector
+columns as numpy arrays instead of '[0.05, -0.06, ...]' strings.
+
+Output (data/ is not in Git)
+----------------------------
+data/corpus/profiles.jsonl              one JSON object per line, one line per profile
+data/corpus/profile_ids.json            [{"profile_id": ...}, ...] in the same order,
+                                        the format scripts.build_index --ids expects
+data/corpus/metadata.json               seed, sizes, source and build time
+data/corpus/embeddings_core.npy         float32 (size x 1024), same row order
+data/corpus/embeddings_projects.npy     idem
+data/corpus/embeddings_interests.npy    idem
+data/corpus/embeddings.json             model, dimension, NULL counts, build time
+
+Usage (from the project root; reads DATABASE_URL from .env.local, read-only):
+    python -m search_engine.corpus                    # profiles + embeddings
+    python -m search_engine.corpus --size 10000 --seed 42
+    python -m search_engine.corpus --embeddings-only  # embeddings for the existing
+                                                      # corpus, profiles untouched
+    python -m search_engine.corpus --no-embeddings    # profiles only
+    python -m search_engine.corpus --all              # every profile in the database,
+                                                      # written to data/full/
+    python -m search_engine.corpus --all --embeddings-only
+
+With --all the same files are written, to data/full/ instead of data/corpus/,
+so the 10,000-profile corpus is left alone. The order is the same rule: the
+1,000 judged profiles first, then all the others sorted by profile_id (the
+seed has no effect). Expect about 3 GB of embeddings (3 x 1 GB).
+
+Reading it back:
+    from search_engine.corpus import load_corpus, load_embeddings, FULL_DIR
+    rows = load_corpus()                  # list of dicts, in file order
+    core = load_embeddings("core")        # numpy array, row i = rows[i]
+    rows = load_corpus(FULL_DIR / "profiles.jsonl")     # the full corpus
+    core = load_embeddings("core", FULL_DIR)
 """
 
 import argparse
@@ -26,7 +91,8 @@ project_root = Path(__file__).resolve().parent.parent
 
 DEFAULT_SIZE = 10_000
 DEFAULT_SEED = 42
-DEFAULT_DIR = project_root / "data" / "corpus"
+DEFAULT_DIR = project_root / "data" / "corpus"   # the 10,000-profile corpus
+FULL_DIR = project_root / "data" / "full"        # every profile (--all)
 JUDGED_IDS_PATH = project_root / "tests" / "retrieval_1000" / "profile_ids.json"
 COLUMNS = [
     "profile_id",
@@ -55,7 +121,7 @@ SENSITIVE_USER_KEYS = ["age", "desired_salary", "ethnicity", "legal_status", "sp
 
 
 def strip_sensitive(profile):
-    """The profile JSON without the protected keys in profile['user']."""
+    """Return the profile JSON without the protected keys in profile['user']."""
     user = profile.get("user")
     if isinstance(user, dict):
         profile = dict(profile)
@@ -64,7 +130,6 @@ def strip_sensitive(profile):
 
 
 def read_judged_ids(path=JUDGED_IDS_PATH):
-    """profile_ids of the judged profiles; fails on duplicates."""
     with Path(path).open(encoding="utf-8") as file:
         ids = [row["profile_id"] for row in json.load(file)]
     if len(set(ids)) != len(ids):
@@ -73,7 +138,7 @@ def read_judged_ids(path=JUDGED_IDS_PATH):
 
 
 def sample_ids(all_ids, judged_ids, size, seed):
-    """Judged ids first, then size - len(judged) others sampled with a fixed seed."""
+    """Judged IDs first, then (size - len(judged)) others sampled with a fixed seed."""
     judged = set(judged_ids)
     others = sorted(set(all_ids) - judged)
     n_random = size - len(judged_ids)
@@ -86,7 +151,6 @@ def sample_ids(all_ids, judged_ids, size, seed):
 
 
 def connect():
-    """Open a read connection to the database URL in .env.local."""
     import psycopg
     from dotenv import load_dotenv
     from psycopg.rows import dict_row
@@ -99,7 +163,7 @@ def connect():
 
 
 def fetch_rows(connection, ids):
-    """Fetch the given profiles (protected keys removed), in the order of ids."""
+    """Fetch the given profiles, returned in the same order as ids."""
     rows_by_id = {}
     query = f"SELECT {', '.join(COLUMNS)} FROM people WHERE profile_id = ANY(%s)"
     for start in range(0, len(ids), FETCH_BATCH):
@@ -114,30 +178,37 @@ def fetch_rows(connection, ids):
 
 
 def write_corpus(rows, out_dir, metadata):
-    """Write profiles.jsonl, profile_ids.json and metadata.json (temp file, then rename)."""
+    """Write the three output files. Each is written to a temporary file first and
+    then renamed, so a crash never leaves a half-written corpus behind."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    def write(name, text):
+    def write(name, lines):
         tmp = out_dir / (name + ".tmp")
-        tmp.write_text(text, encoding="utf-8")
+        with tmp.open("w", encoding="utf-8") as file:
+            file.writelines(lines)
         tmp.replace(out_dir / name)
 
-    write("profiles.jsonl", "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
-    write("profile_ids.json", json.dumps([{"profile_id": row["profile_id"]} for row in rows], indent=1))
-    write("metadata.json", json.dumps(metadata, indent=2))
+    # profiles.jsonl is written line by line: with --all, one big string would
+    # cost as much memory again as the rows themselves.
+    write("profiles.jsonl", (json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
+    write("profile_ids.json", [json.dumps([{"profile_id": row["profile_id"]} for row in rows], indent=1)])
+    write("metadata.json", [json.dumps(metadata, indent=2)])
 
 
 def normalize_rows(matrix):
-    """Scale every row to length 1; all-zero rows stay zero."""
+    """Scale every row to length 1, in place (no second copy of a 1 GB matrix).
+    All-zero rows (missing embeddings) stay zero."""
     import numpy as np
 
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-    return np.divide(matrix, norms, out=np.zeros_like(matrix), where=norms > 0)
+    np.divide(matrix, norms, out=matrix, where=norms > 0)
+    return matrix
 
 
 def to_array(value):
-    """A pgvector value as a float32 numpy array (None stays None)."""
+    """A pgvector value as a float32 numpy array (None stays None). Depending on the
+    pgvector version the adapter returns a numpy array or a pgvector Vector."""
     import numpy as np
 
     if value is None:
@@ -148,57 +219,53 @@ def to_array(value):
 
 
 def fetch_embeddings(connection, ids):
-    """The three embeddings of ids as normalized float32 matrices (row i = ids[i]),
-    plus an info dict. Fails on missing rows, duplicates or mixed models.
-    """
+    """Fetch the three embeddings of the given profiles, as normalized float32
+    matrices whose row i belongs to ids[i]. Returns (matrices, info)."""
     import numpy as np
     from pgvector.psycopg import register_vector
 
     register_vector(connection)
     columns = ", ".join(EMBEDDING_KINDS.values())
     query = f"SELECT profile_id, model, {columns} FROM public.profile_embeddings WHERE profile_id = ANY(%s)"
-    rows_by_id = {}
+
+    # Each vector goes straight into its row of the matrix as it arrives, so the
+    # vectors are never held twice (matters with --all: about 1 GB per kind).
+    # The matrices are made when the first vector shows the dimension.
+    position = {pid: i for i, pid in enumerate(ids)}
+    seen = set()
+    models = set()
+    matrices = None
+    dimension = None
+    nulls = {kind: 0 for kind in EMBEDDING_KINDS}
     for start in range(0, len(ids), FETCH_BATCH):
         batch = ids[start:start + FETCH_BATCH]
         for row in connection.execute(query, (batch,), binary=True).fetchall():
-            if row["profile_id"] in rows_by_id:
-                raise ValueError(f"Two embedding rows for {row['profile_id']}")
-            for column in EMBEDDING_KINDS.values():
-                row[column] = to_array(row[column])
-            rows_by_id[row["profile_id"]] = row
+            pid = row["profile_id"]
+            if pid in seen:
+                raise ValueError(f"Two embedding rows for {pid}")
+            seen.add(pid)
+            models.add(row["model"])
+            for kind, column in EMBEDDING_KINDS.items():
+                vector = to_array(row[column])
+                if vector is None:
+                    nulls[kind] += 1
+                    continue
+                if matrices is None:
+                    dimension = len(vector)
+                    matrices = {k: np.zeros((len(ids), dimension), dtype=np.float32) for k in EMBEDDING_KINDS}
+                if len(vector) != dimension:
+                    raise ValueError(f"{pid} {column} has {len(vector)} dimensions, expected {dimension}")
+                matrices[kind][position[pid]] = vector
 
-    missing = [pid for pid in ids if pid not in rows_by_id]
+    missing = [pid for pid in ids if pid not in seen]
     if missing:
         raise ValueError(f"{len(missing)} profiles have no row in profile_embeddings, e.g. {missing[:3]}")
-    models = {row["model"] for row in rows_by_id.values()}
     if len(models) != 1:
         raise ValueError(f"Embeddings come from more than one model: {sorted(models)}")
-
-    dimension = None
-    for row in rows_by_id.values():
-        for column in EMBEDDING_KINDS.values():
-            if row[column] is not None:
-                dimension = len(row[column])
-                break
-        if dimension:
-            break
-    if dimension is None:
+    if matrices is None:
         raise ValueError("Every embedding is NULL")
-
-    matrices = {}
-    nulls = {}
-    for kind, column in EMBEDDING_KINDS.items():
-        matrix = np.zeros((len(ids), dimension), dtype=np.float32)
-        nulls[kind] = 0
-        for i, pid in enumerate(ids):
-            vector = rows_by_id[pid][column]
-            if vector is None:
-                nulls[kind] += 1
-                continue
-            if len(vector) != dimension:
-                raise ValueError(f"{pid} {column} has {len(vector)} dimensions, expected {dimension}")
-            matrix[i] = vector
-        matrices[kind] = normalize_rows(matrix)
+    for kind in matrices:
+        normalize_rows(matrices[kind])
 
     info = {
         "model": models.pop(),
@@ -213,7 +280,7 @@ def fetch_embeddings(connection, ids):
 
 
 def write_embeddings(matrices, info, out_dir):
-    """Write one .npy per kind plus embeddings.json (temp file, then rename)."""
+    """Write one .npy per kind plus embeddings.json (temporary file, then rename)."""
     import numpy as np
 
     out_dir = Path(out_dir)
@@ -230,7 +297,7 @@ def write_embeddings(matrices, info, out_dir):
 
 
 def load_embeddings(kind="core", corpus_dir=DEFAULT_DIR):
-    """Read one embedding matrix back (row i = doc_id i)."""
+    """Read one embedding matrix back (row i = line i of profiles.jsonl = doc_id i)."""
     import numpy as np
 
     path = Path(corpus_dir) / f"embeddings_{kind}.npy"
@@ -240,7 +307,7 @@ def load_embeddings(kind="core", corpus_dir=DEFAULT_DIR):
 
 
 def read_corpus_ids(corpus_dir=DEFAULT_DIR):
-    """profile_ids of the existing corpus, in file order."""
+    """The profile ids of the existing corpus, in file order."""
     path = Path(corpus_dir) / "profile_ids.json"
     if not path.exists():
         raise FileNotFoundError(f"{path} not found. Build the corpus first: python -m search_engine.corpus")
@@ -249,7 +316,7 @@ def read_corpus_ids(corpus_dir=DEFAULT_DIR):
 
 
 def load_corpus(path=DEFAULT_DIR / "profiles.jsonl"):
-    """Read profiles.jsonl back as a list of row dicts, in file order."""
+    """Read the corpus back: a list of row dicts, in file order."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"{path} not found. Build it with: python -m search_engine.corpus")
@@ -262,16 +329,21 @@ def load_corpus(path=DEFAULT_DIR / "profiles.jsonl"):
 
 
 def main():
-    """Command line entry point (see the module docstring)."""
     parser = argparse.ArgumentParser(description="Build the fixed corpus snapshot from the database.")
-    parser.add_argument("--size", type=int, default=DEFAULT_SIZE, help=f"total profiles (default {DEFAULT_SIZE})")
+    how_many = parser.add_mutually_exclusive_group()
+    how_many.add_argument("--size", type=int, default=DEFAULT_SIZE, help=f"total profiles (default {DEFAULT_SIZE})")
+    how_many.add_argument("--all", action="store_true",
+                          help="take every profile in the database (default output folder data/full)")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help=f"random seed (default {DEFAULT_SEED})")
-    parser.add_argument("--out-dir", type=Path, default=DEFAULT_DIR, help="output folder (default data/corpus)")
+    parser.add_argument("--out-dir", type=Path, default=None,
+                        help="output folder (default data/corpus, or data/full with --all)")
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--embeddings-only", action="store_true",
                        help="only snapshot the embeddings of the existing corpus (profiles untouched)")
     group.add_argument("--no-embeddings", action="store_true", help="only snapshot the profiles")
     args = parser.parse_args()
+    if args.out_dir is None:
+        args.out_dir = FULL_DIR if args.all else DEFAULT_DIR
 
     if args.embeddings_only:
         ids = read_corpus_ids(args.out_dir)
@@ -288,12 +360,16 @@ def main():
         connection.execute("SET TRANSACTION READ ONLY")
         all_ids = [row["profile_id"] for row in connection.execute("SELECT profile_id FROM people").fetchall()]
         print(f"{len(all_ids)} profiles in the database, {len(judged_ids)} judged.")
-        ids = sample_ids(all_ids, judged_ids, args.size, args.seed)
+        # --all: the size is whatever the database holds now, so sample_ids takes
+        # every other profile (judged first, the rest sorted; the seed does nothing).
+        size = len(set(all_ids)) if args.all else args.size
+        ids = sample_ids(all_ids, judged_ids, size, args.seed)
         rows = fetch_rows(connection, ids)
         if not args.no_embeddings:
             matrices, info = fetch_embeddings(connection, ids)
 
     metadata = {
+        "all": args.all,
         "size": len(rows),
         "judged": len(judged_ids),
         "sampled": len(rows) - len(judged_ids),

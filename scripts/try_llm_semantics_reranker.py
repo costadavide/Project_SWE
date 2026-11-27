@@ -2,15 +2,11 @@ import argparse
 import json
 
 from scripts.ask_llm import ask, warm_up
-from scripts.try_semantics import DIR, get_text, load_lines, print_result
+from scripts.config import DIR, FILTERS, K, POOL, WEIGHTS
+from scripts.try_semantics import get_text, load_lines, print_result
 from semantic_search.filters import build_allowed, load_metadata, load_skills_index
 from semantic_search.reranker import Reranker
 from semantic_search.searcher import SemanticSearcher
-
-
-POOL = 100  # profiles retrieved and given to the reranker
-K = 5      # profiles shown
-FILTERS = ("location", "min_years_experience", "max_years_experience", "excluded_skills")  # what build_allowed uses
 
 
 def understand_query(query, metadata, rewrite, skills_index=None):
@@ -67,10 +63,7 @@ def main():
     args = parser.parse_args()
 
     print("Loading...")
-    weights = {"core": 0.80,
-        "projects": 0.15,
-        "interests": 0.05,}
-    searcher = SemanticSearcher(DIR, weights=weights)
+    searcher = SemanticSearcher(DIR, weights=WEIGHTS)
     reranker = Reranker()
     reranker.load_model()
     searcher.load_model()
