@@ -1,14 +1,28 @@
+"""BM25 and BM25F ranking over the Index.
+
+Both expose search(query, k, allowed=None) -> (profiles, breakdowns):
+profiles = [(profile_id, score)] best first, breakdowns = the per-term parts
+of each score. allowed (a set of doc_ids) limits scoring to pre-filtered docs.
+
+BM25:  tf summed over all fields, one length normalization per doc.
+BM25F: tf normalized per field (own b), weighted per field (title highest),
+       summed and saturated once with k1.
+"""
+
 from search_engine.analyzer import analyze
 from collections import defaultdict
 import heapq
 
 def new_score_by_term():
+    """defaultdict factory for the score breakdowns."""
     return defaultdict(int)
 
 def new_score_by_term_field():
+    """defaultdict factory for the score breakdowns."""
     return defaultdict(new_score_by_term)
 
 class BM25:
+    """Classic BM25 (k1=1.2, b=0.75), with all fields treated as one bag of words."""
     def __init__(self, index, k1=1.2, b=0.75):
         self.index = index
         self.b = b
@@ -16,10 +30,7 @@ class BM25:
         self.avgdl = self.index.avg_doc_length()
 
     def search(self, query, k, allowed=None):
-        """
-        search in the index for docs that match the query and in the allowed set (if filters are given)
-        and then return the k with the highest scores
-        """
+        """Top k docs among allowed (None = all); breakdown = {term: score}."""
         term_pos = analyze(query, stem=True, query=True)
         unique_terms = set()
         for term, _ in term_pos:
@@ -55,6 +66,7 @@ class BM25:
 
 
 class BM25F:
+    """BM25F with per-field weights w and length normalization b (defaults below)."""
     def __init__(self, index, k1=1.2, b=None, w=None):
         self.index = index
         self.b = b
@@ -79,10 +91,7 @@ class BM25F:
             self.avg_fl[field] = self.index.avg_field_length(field)
 
     def search(self, query, k, allowed=None):
-        """
-        search in the index for docs that match the query and in the allowed set (if filters are given)
-        and then return the k with the highest scores
-        """
+        """Top k docs among allowed (None = all); breakdown = {term: {field: share of the term's score}}."""
         term_pos = analyze(query, stem=True, query=True)
         unique_terms = set()
         for term, _ in term_pos:

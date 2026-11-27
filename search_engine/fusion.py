@@ -1,6 +1,14 @@
+"""Reciprocal rank fusion (RRF) of searchers that share the search() interface.
+
+Every searcher returns its top `depth` profiles for the same query and allowed
+set, and a profile scores the sum over searchers of 1 / (rrf_k + rank).
+Ties go to the better semantic rank, then to the lower profile_id.
+"""
+
 from collections import defaultdict
 
 class Fusion:
+    """searchers = {name: searcher}; only method="rrf" is supported."""
     def __init__(self, searchers, method="rrf", rrf_k=60, depth=200):
         self.method = method
         if self.method != "rrf":
@@ -10,6 +18,7 @@ class Fusion:
         self.searchers = searchers
 
     def search(self, query, k, allowed=None):
+        """Top k fused profiles; breakdown = {searcher: (rank, contribution)} for each profile."""
         res = {}
         for searcher, obj in self.searchers.items():
             res[searcher] = obj.search(query=query, k=self.depth, allowed=allowed)[0]

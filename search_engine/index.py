@@ -1,3 +1,15 @@
+"""Positional inverted index over the profile fields, saved as a pickle.
+
+    postings[term][doc_id][field] -> positions of the term in that field
+    field_lengths[doc_id][field]  -> number of positions the field occupies
+    doc_store[doc_id]             -> profile_id and the filter columns
+
+doc_ids follow the order of the corpus rows, so doc_id i is also row i of the
+embeddings. Values of a field are 100 positions apart, so a phrase cannot
+match across two values. The index also keeps the corpus statistics that
+BM25/BM25F need and answers phrase queries (phrase_docs).
+"""
+
 from collections import defaultdict
 from search_engine.fields import profile_to_dict
 from search_engine.analyzer import analyze
@@ -11,14 +23,17 @@ import math
 #   field_lengths[doc_id][field]  -> int
 # They are named (not lambdas) so that pickle can save the index.
 def new_positions_by_field():
+    """defaultdict factory, named so the index can be pickled."""
     return defaultdict(list)
 
 
 def new_fields_by_doc():
+    """defaultdict factory, named so the index can be pickled."""
     return defaultdict(new_positions_by_field)
 
 
 def new_length_by_field():
+    """defaultdict factory, named so the index can be pickled."""
     return defaultdict(int)
 
 
@@ -34,6 +49,7 @@ FIELD_STEM = {
 }
 
 class Index:
+    """Index(rows) builds the index from corpus rows (profile_id, profile JSON, filter columns)."""
     def __init__(self, docs):
         self.postings = defaultdict(new_fields_by_doc)
         self.doc_store = []
@@ -46,6 +62,7 @@ class Index:
         self.build_index(docs)
 
     def build_index(self, docs):
+        """Add every row of docs."""
         if not docs:
             return None
 
@@ -53,8 +70,8 @@ class Index:
             self.add_doc(doc)
 
     def add_doc(self, document):
-        """
-        Assume the document containes a full row of the database as a dict
+        """Add one corpus row: give it the next doc_id, store its filters and index its fields.
+        Rows without a profile are skipped; a repeated profile_id raises KeyError.
         """
         profile_id = document.get("profile_id", None)
 
@@ -82,6 +99,7 @@ class Index:
             self.add_field(field, profile[field], doc_id)
 
     def add_field(self, field, values, doc_id):
+        """Index the values of one field of doc_id and record the field length."""
         offset = 0
         cnt = 0
         for text in values:
@@ -100,19 +118,23 @@ class Index:
             self.n_docs_per_field[field] += 1
     
     def read_term(self, term):
+        """{doc_id: {field: positions}} for term, {} if the term is unknown."""
         if term not in self.postings:
             return {}
         return self.postings[term]
 
     def read_doc_id(self, profile_id):
+        """doc_id of profile_id, or None."""
         if profile_id not in self.doc_id_by_profile:
             return None
         return self.doc_id_by_profile[profile_id]
 
     def __len__(self):
+        """Number of indexed documents."""
         return self.n_docs
 
     def read_field_length(self, doc_id, field):
+        """Length of field in doc_id (0 if the field is empty)."""
         if not (0 <= doc_id < self.n_docs):
             raise KeyError("Document ID not in the index")
 
@@ -125,6 +147,7 @@ class Index:
         return self.field_lengths[doc_id][field]
 
     def avg_field_length(self, field):
+        """Average length of field over the docs where it is not empty."""
         if field not in self.sum_length_field:
             return 0.0
         if self.n_docs_per_field[field] != 0:
@@ -133,15 +156,18 @@ class Index:
             return 0.0
 
     def doc_freq(self, term):
+        """Number of docs that contain term."""
         return len(self.read_term(term))
 
     def read_doc(self, doc_id):
+        """Stored info of doc_id: profile_id and filter columns."""
         if not (0 <= doc_id < self.n_docs):
             raise KeyError("Document ID not in the index")
 
         return self.doc_store[doc_id]
 
     def term_freq(self, term, doc_id):
+        """Occurrences of term in doc_id, summed over all fields."""
         if not (0 <= doc_id < self.n_docs):
             raise KeyError("Document ID not in the index")
         
@@ -159,6 +185,7 @@ class Index:
         return tf
 
     def doc_length(self, doc_id):
+        """Length of doc_id, summed over all fields."""
         if not (0 <= doc_id < self.n_docs):
             raise KeyError("Document ID not in the index")
         
@@ -172,6 +199,7 @@ class Index:
         return dl
 
     def avg_doc_length(self):
+        """Average document length over all docs."""
         avg = 0
         for field in self.sum_length_field.values():
             avg += field
@@ -179,12 +207,13 @@ class Index:
         return avg / self.n_docs
 
     def idf(self, term):
+        """BM25 idf: ln(1 + (N - df + 0.5) / (df + 0.5))."""
         df = self.doc_freq(term)
         
         return math.log(1 + (self.n_docs - df  + 0.5) / (df + 0.5))
 
     def save(self, path):
-        """Save the whole index to a pickle file (creates the folder if needed)."""
+        """Pickle the index to path, with the stemming settings it was built with."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.field_stem = dict(FIELD_STEM)
@@ -193,7 +222,7 @@ class Index:
 
     @staticmethod
     def load(path):
-        """Load an index saved with save()."""
+        """Load a pickled index; warns if it was built with other stemming settings."""
         with Path(path).open("rb") as file:
             index = pickle.load(file)
         if not isinstance(index, Index):
@@ -209,6 +238,7 @@ class Index:
         return index
 
     def _common_fields(self, term_docs, doc_id):
+        """Fields of doc_id in which every term appears."""
         fields = None
         for term in term_docs:
             cur_fields = self.postings[term][doc_id].keys()
@@ -222,6 +252,7 @@ class Index:
         return fields
 
     def _phrase_in_field(self, term_pos, terms, doc_id, field):
+        """True if the terms appear in field at the same relative offsets as in the phrase."""
         position_set = {}
         first_term, first_offset = term_pos[0]
         for term in terms:
@@ -234,6 +265,9 @@ class Index:
         
 
     def phrase_docs(self, phrase):
+        """doc_ids that contain the phrase inside one field, with the analyzer's offsets
+        (stopwords leave gaps). set() if none, None if the phrase is only stopwords.
+        """
         term_pos = analyze(phrase, stem=True, query=True)
         if not term_pos:
             return None

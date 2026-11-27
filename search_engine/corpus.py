@@ -1,73 +1,18 @@
-"""Build and read the fixed working corpus: a snapshot of 10,000 profiles.
+"""Snapshot of the working corpus, written once so later steps never query the database.
 
-The corpus is the one set of profiles that every method uses: the lexical
-index, the embeddings, learning-to-rank and the evaluation. It is written to
-disk once, so later steps never touch the database again and always see
-exactly the same profiles in exactly the same order.
+Profiles: the 1,000 judged profiles (tests/retrieval_1000) first, then a seeded
+random sample of the others (default 10,000 in total, seed 42). Protected keys
+in the profile JSON are removed. Embeddings (core, projects, interests) come
+from public.profile_embeddings, normalized, with NULL stored as a zero row.
+Line i of every output is the same profile, which is also doc_id i in the
+lexical index.
 
-Which profiles
---------------
-- all 1,000 profiles in tests/retrieval_1000/profile_ids.json, so the graded
-  judgments stay valid;
-- plus 9,000 other profiles chosen at random with a fixed seed.
+Output (data/corpus/): profiles.jsonl, profile_ids.json, metadata.json,
+embeddings_{core,projects,interests}.npy, embeddings.json.
 
-Reproducible sampling: all other profile IDs are fetched, sorted, and sampled
-with random.Random(seed). Sorting first means the result does not depend on
-the order the database returns rows in, so the same seed gives the same
-profiles on any machine and any PostgreSQL server holding the same table.
-(SQL ORDER BY random() cannot be seeded reliably, so it is not used.)
-
-Order in the file: the 1,000 judged profiles first (in profile_ids.json
-order), then the 9,000 sampled ones sorted by profile_id.
-
-Which columns
--------------
-profile_id, profile (the JSON), the filter columns job_family, seniority,
-city, state, experience_years, and seed_role and cohort. seed_role is needed
-to build weak training labels for learning-to-rank and cohort is handy for
-analysis; neither is ever indexed. Protected or useless columns (age,
-desired_salary, the duplicate skills column, created_at) are not read at all,
-and the protected keys inside the profile JSON (user.age, user.desired_salary,
-user.ethnicity, user.legal_status, user.sponsorship_needed) are removed
-before writing. user.skills stays: fields.py reads the skills from there.
-
-Embeddings
-----------
-The teammate's table public.profile_embeddings holds, for every profile, three
-pgvector columns (core_embedding, projects_embedding, interests_embedding) made
-with one model (Qwen/Qwen3-Embedding-0.6B). They are snapshotted too, so the
-semantic searcher never touches the database either:
-- row i of each matrix is the profile on line i of profiles.jsonl, which is
-  doc_id i in the lexical index: the two methods are aligned by construction;
-- every row is normalized to length 1 (normalizing an already normalized
-  vector changes nothing), so cosine similarity is a dot product;
-- a NULL embedding (e.g. a profile with no projects) is stored as a row of
-  zeros: it scores 0 against every query. The counts are in embeddings.json.
-The pgvector adapter (pip install pgvector) makes psycopg return vector
-columns as numpy arrays instead of '[0.05, -0.06, ...]' strings.
-
-Output (data/ is not in Git)
-----------------------------
-data/corpus/profiles.jsonl              one JSON object per line, one line per profile
-data/corpus/profile_ids.json            [{"profile_id": ...}, ...] in the same order,
-                                        the format scripts.build_index --ids expects
-data/corpus/metadata.json               seed, sizes, source and build time
-data/corpus/embeddings_core.npy         float32 (size x 1024), same row order
-data/corpus/embeddings_projects.npy     idem
-data/corpus/embeddings_interests.npy    idem
-data/corpus/embeddings.json             model, dimension, NULL counts, build time
-
-Usage (from the project root; reads DATABASE_URL from .env.local, read-only):
-    python -m search_engine.corpus                    # profiles + embeddings
-    python -m search_engine.corpus --size 10000 --seed 42
-    python -m search_engine.corpus --embeddings-only  # embeddings for the existing
-                                                      # corpus, profiles untouched
-    python -m search_engine.corpus --no-embeddings    # profiles only
-
-Reading it back:
-    from search_engine.corpus import load_corpus, load_embeddings
-    rows = load_corpus()                  # list of dicts, in file order
-    core = load_embeddings("core")        # numpy array, row i = rows[i]
+Usage (from the project root, DATABASE_URL in .env.local, read-only):
+    python -m search_engine.corpus [--size N] [--seed S] [--out-dir DIR]
+    python -m search_engine.corpus --embeddings-only   # or --no-embeddings
 """
 
 import argparse
@@ -110,7 +55,7 @@ SENSITIVE_USER_KEYS = ["age", "desired_salary", "ethnicity", "legal_status", "sp
 
 
 def strip_sensitive(profile):
-    """Return the profile JSON without the protected keys in profile['user']."""
+    """The profile JSON without the protected keys in profile['user']."""
     user = profile.get("user")
     if isinstance(user, dict):
         profile = dict(profile)
@@ -119,6 +64,7 @@ def strip_sensitive(profile):
 
 
 def read_judged_ids(path=JUDGED_IDS_PATH):
+    """profile_ids of the judged profiles; fails on duplicates."""
     with Path(path).open(encoding="utf-8") as file:
         ids = [row["profile_id"] for row in json.load(file)]
     if len(set(ids)) != len(ids):
@@ -127,7 +73,7 @@ def read_judged_ids(path=JUDGED_IDS_PATH):
 
 
 def sample_ids(all_ids, judged_ids, size, seed):
-    """Judged IDs first, then (size - len(judged)) others sampled with a fixed seed."""
+    """Judged ids first, then size - len(judged) others sampled with a fixed seed."""
     judged = set(judged_ids)
     others = sorted(set(all_ids) - judged)
     n_random = size - len(judged_ids)
@@ -140,6 +86,7 @@ def sample_ids(all_ids, judged_ids, size, seed):
 
 
 def connect():
+    """Open a read connection to the database URL in .env.local."""
     import psycopg
     from dotenv import load_dotenv
     from psycopg.rows import dict_row
@@ -152,7 +99,7 @@ def connect():
 
 
 def fetch_rows(connection, ids):
-    """Fetch the given profiles, returned in the same order as ids."""
+    """Fetch the given profiles (protected keys removed), in the order of ids."""
     rows_by_id = {}
     query = f"SELECT {', '.join(COLUMNS)} FROM people WHERE profile_id = ANY(%s)"
     for start in range(0, len(ids), FETCH_BATCH):
@@ -167,8 +114,7 @@ def fetch_rows(connection, ids):
 
 
 def write_corpus(rows, out_dir, metadata):
-    """Write the three output files. Each is written to a temporary file first and
-    then renamed, so a crash never leaves a half-written corpus behind."""
+    """Write profiles.jsonl, profile_ids.json and metadata.json (temp file, then rename)."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -183,7 +129,7 @@ def write_corpus(rows, out_dir, metadata):
 
 
 def normalize_rows(matrix):
-    """Scale every row to length 1. All-zero rows (missing embeddings) stay zero."""
+    """Scale every row to length 1; all-zero rows stay zero."""
     import numpy as np
 
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
@@ -191,8 +137,7 @@ def normalize_rows(matrix):
 
 
 def to_array(value):
-    """A pgvector value as a float32 numpy array (None stays None). Depending on the
-    pgvector version the adapter returns a numpy array or a pgvector Vector."""
+    """A pgvector value as a float32 numpy array (None stays None)."""
     import numpy as np
 
     if value is None:
@@ -203,8 +148,9 @@ def to_array(value):
 
 
 def fetch_embeddings(connection, ids):
-    """Fetch the three embeddings of the given profiles, as normalized float32
-    matrices whose row i belongs to ids[i]. Returns (matrices, info)."""
+    """The three embeddings of ids as normalized float32 matrices (row i = ids[i]),
+    plus an info dict. Fails on missing rows, duplicates or mixed models.
+    """
     import numpy as np
     from pgvector.psycopg import register_vector
 
@@ -267,7 +213,7 @@ def fetch_embeddings(connection, ids):
 
 
 def write_embeddings(matrices, info, out_dir):
-    """Write one .npy per kind plus embeddings.json (temporary file, then rename)."""
+    """Write one .npy per kind plus embeddings.json (temp file, then rename)."""
     import numpy as np
 
     out_dir = Path(out_dir)
@@ -284,7 +230,7 @@ def write_embeddings(matrices, info, out_dir):
 
 
 def load_embeddings(kind="core", corpus_dir=DEFAULT_DIR):
-    """Read one embedding matrix back (row i = line i of profiles.jsonl = doc_id i)."""
+    """Read one embedding matrix back (row i = doc_id i)."""
     import numpy as np
 
     path = Path(corpus_dir) / f"embeddings_{kind}.npy"
@@ -294,7 +240,7 @@ def load_embeddings(kind="core", corpus_dir=DEFAULT_DIR):
 
 
 def read_corpus_ids(corpus_dir=DEFAULT_DIR):
-    """The profile ids of the existing corpus, in file order."""
+    """profile_ids of the existing corpus, in file order."""
     path = Path(corpus_dir) / "profile_ids.json"
     if not path.exists():
         raise FileNotFoundError(f"{path} not found. Build the corpus first: python -m search_engine.corpus")
@@ -303,7 +249,7 @@ def read_corpus_ids(corpus_dir=DEFAULT_DIR):
 
 
 def load_corpus(path=DEFAULT_DIR / "profiles.jsonl"):
-    """Read the corpus back: a list of row dicts, in file order."""
+    """Read profiles.jsonl back as a list of row dicts, in file order."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"{path} not found. Build it with: python -m search_engine.corpus")
@@ -316,6 +262,7 @@ def load_corpus(path=DEFAULT_DIR / "profiles.jsonl"):
 
 
 def main():
+    """Command line entry point (see the module docstring)."""
     parser = argparse.ArgumentParser(description="Build the fixed corpus snapshot from the database.")
     parser.add_argument("--size", type=int, default=DEFAULT_SIZE, help=f"total profiles (default {DEFAULT_SIZE})")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help=f"random seed (default {DEFAULT_SEED})")

@@ -1,29 +1,19 @@
-"""Split a structured profile into the text fields that the lexical index stores.
+"""Turn a profile JSON into the six text fields that the index stores.
 
-profile_to_dict(profile) returns {field: [strings]}. Every field is a list of
-non-empty strings, one per value (one job title, one skill, one degree, ...),
-so the index can put a position gap between values and no phrase can match
-across two of them. The analyzer turns each string into terms later; this
-module only chooses which parts of the profile JSON go into which field.
-
-Field           Source in the profile JSON
-current_title   title of the most recent job (see _sorted_jobs)
-past_titles     titles of the other jobs, newest first
-skills          user.skills
-summary         user.bio + job descriptions + project names
-education       degree + field_of_study ("Master of Science in Chemistry")
-certifications  certifications[].name
-
-Left out on purpose: protected attributes (age, ethnicity, legal status,
-sponsorship, desired salary), company names, job locations, dates, work
-location preferences and career interests, and the generator labels cohort
-and seed_role. Filters (job_family, seniority, city, state, experience_years)
-come from the database columns, not from this module.
+profile_to_dict(profile) -> {field: [strings]}, one string per value:
+    current_title    most recent job title
+    past_titles      the other job titles, newest first
+    skills           user.skills
+    summary          bio, job descriptions and project names
+    education        "degree in field_of_study"
+    certifications   certification names
+Never indexed: protected attributes, companies, locations, dates, cohort and
+seed_role. Filters come from the database columns, not from here.
 """
 
 
 def _clean_list(values):
-    """Strip, drop empties and non-strings, and remove case-insensitive duplicates."""
+    """Strip values, drop empty and non-string ones, remove case-insensitive duplicates."""
     seen = set()
     result = []
     for value in values or []:
@@ -37,7 +27,7 @@ def _clean_list(values):
 
 
 def _month_key(date):
-    """Convert 'MM/YYYY' to (year, month) for sorting; None if missing or malformed."""
+    """'MM/YYYY' -> (year, month) for sorting; None if missing or malformed."""
     try:
         month, year = date.split("/")
         return int(year), int(month)
@@ -46,12 +36,7 @@ def _month_key(date):
 
 
 def _sorted_jobs(experiences):
-    """Return jobs newest first; undated jobs keep their original order at the end.
-
-    Ongoing jobs (no end date) come before finished ones, then later start
-    dates first. The source data is not reliably ordered: in a 100-profile sample,
-    14 of 100 profiles listed an older job first.
-    """
+    """Jobs newest first (ongoing before finished, then latest start date); undated jobs last."""
     jobs = [
         job for job in experiences or []
         if isinstance(job, dict) and (job.get("title") or "").strip()
@@ -66,11 +51,13 @@ def _sorted_jobs(experiences):
 
 
 def _job_title(job):
+    """The job title, marked "(internship)" when it is one."""
     title = job["title"].strip()
     return f"{title} (internship)" if job.get("is_internship") else title
 
 
 def _education_entry(entry):
+    """"Degree in field", or whichever of the two is given."""
     degree = entry.get("degree").strip() if entry.get("degree") else None
     field = entry.get("field_of_study").strip() if entry.get("field_of_study") else None
     if degree and field and field.lower() not in degree.lower():
@@ -79,6 +66,7 @@ def _education_entry(entry):
 
 
 def profile_to_dict(profile):
+    """The profile as {field: [non-empty strings]}; a missing field is []."""
     user = profile.get("user") or {}
     res = {"current_title": [], "past_titles":[], "skills":[], "summary":[], "education":[], "certifications":[]}
 

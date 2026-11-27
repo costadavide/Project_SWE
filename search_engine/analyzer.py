@@ -1,83 +1,20 @@
-"""Turn one string into the ordered list of (term, position) pairs that the index stores.
+"""Text analyzer: turns one string into a list of (term, position) pairs.
 
-The same analyzer runs on documents (every value of every field, at index
-time) and on queries (the free-text words, at search time), so the same
-string always gives the same terms. A query can only match a document if
-both were analyzed the same way. The one deliberate exception is described
-under "Acronyms that collide with stopwords" below.
+The same analyzer runs on documents and on queries, so the same text always
+gives the same terms. Steps:
+1. normalize: strip accents, turn curly quotes and dashes into ASCII;
+2. tokenize: protected tokens (c++, node.js, ci/cd, from resources/) and
+   acronyms stay whole, "/" splits, everything else is split on
+   non-alphanumeric characters (hyphens inside a word are kept);
+3. hyphenated words are stacked: "full-stack" -> full, fullstack (same
+   position), stack, so "full stack", "full-stack" and "fullstack" all match;
+4. lowercase and drop stopwords, keeping their positions so phrases still work;
+5. Snowball stemming (protected tokens and acronyms are not stemmed).
 
-Contract
---------
-analyze(text, stem=True, query=False) -> list of (term, position)
+Acronyms that are also stopwords (IT, OR, US, ...) are kept in documents only
+when written in capitals, and always kept in queries (users type "it support").
 
-- text: one string: one job title, one skill, one bio, one query.
-- stem: False turns off stemming, so a field such as skills can be indexed
-  unstemmed if NDCG shows that works better. The index builder decides this
-  per field; the analyzer only takes the flag.
-- query: True when analyzing a user's query instead of a document (see
-  acronyms below).
-- Positions start at 0 for every string and count tokens in the original
-  text, including stopwords that are later removed.
-- The analyzer knows nothing about fields, profiles or the index. The gap of
-  100 positions between the values of a field is added by the index builder.
-- Deterministic: no randomness, no state between calls.
-- Empty strings or text with no letters or digits return [].
-
-Pipeline (in this order)
-------------------------
-1. Character normalization: Unicode NFKC, accents folded (José -> jose),
-   curly quotes and the different dash characters turned into plain ASCII.
-2. Tokenization, on the original-case text:
-   a. Protected tokens are matched first and kept whole: tokens that
-      splitting would break or make ambiguous, such as c++, c#, f#, .net,
-      node.js, ci/cd, a/b. The list comes from the skills column (words
-      inside skills containing + # . / &, used by at least 20 profiles).
-   b. The rest is split on any character that is not a letter, a digit or
-      a hyphen between two letters/digits.
-   c. Every token gets the next position here, before anything is removed.
-3. Hyphenated words become stacked tokens: the parts at consecutive
-   positions, plus the joined form at the same position as the first part.
-   "full-stack engineer" -> full 0, fullstack 0, stack 1, engin 2.
-   So "full stack", "full-stack" and "fullstack" all match, and phrases still
-   work. Only the parts count towards the field length; the joined form sits
-   on a position that is already counted.
-4. Lowercasing. Acronyms are recognised before this step (see below).
-5. Stopword removal: a standard English list. Removed words keep their
-   position, so "head of engineering" -> head 0, engin 2. The list holds
-   unstemmed words, so this runs before stemming.
-6. Stemming with Snowball English (snowballstemmer), unless stem=False.
-   Protected tokens and acronyms are never stemmed: Snowball would turn
-   aws into "aw" and node.js into "node.j".
-
-Acronyms
---------
-Most acronyms (AWS, SQL, ICU, SAS) are simply lowercased and protected from
-stemming; they do not collide with English words.
-
-A few acronyms are also stopwords: IT, OR (operating room), US, AS, and the
-single-letter languages R and C if one-letter tokens would otherwise be
-dropped. For these:
-- in documents, the term is kept only when the original token is written in
-  all capitals ("IT support" -> it). Any other casing ("it", "It") is the
-  ordinary word and is removed as a stopword. "I love it" adds nothing, so
-  a bio's pronoun never matches a search for IT people.
-- in queries (query=True), these words are never removed, because users type
-  in lowercase ("it support"). Since documents only kept them where they
-  were acronyms, the query term matches exactly the IT people.
-This is the one place where documents and queries are analyzed differently,
-on purpose.
-
-Examples (documents)
---------------------
-"Senior Full-Stack Engineer (Node.js, C++, AWS)"
-    senior 0, full 1, fullstack 1, stack 2, engin 3, node.js 4, c++ 5, aws 6
-"Head of IT Operations"
-    head 0, it 2, oper 3            ("of" removed, keeps position 1)
-"Registered Nurse, ICU / Critical Care"
-    regist 0, nurs 1, icu 2, critic 3, care 4
-"I love it"
-    love 1                          ("i" and "it" are stopwords here)
-Query "head of it operations" -> head 0, it 2, oper 3 (same as the document).
+Example: "Head of IT Operations" -> [("head", 0), ("it", 2), ("oper", 3)]
 """
 import snowballstemmer
 import unicodedata
@@ -88,6 +25,7 @@ stemmer = snowballstemmer.stemmer("english")
 stem_cache = {}
 
 def build_set_from_txt(path):
+    """Read a word list (one entry per line, # for comments) into a set."""
     f = path.read_text(encoding="utf-8")
     lines = f.splitlines()
 
@@ -118,6 +56,7 @@ TABLE = str.maketrans(table)
 CHARS_TO_STRIP = "()[]{}\"',;:!?"
 
 def normalize(text):
+    """Strip accents and turn curly quotes and dashes into plain ASCII."""
     if text == "":
         return text
     text = unicodedata.normalize("NFKD", text)
@@ -132,6 +71,7 @@ def normalize(text):
         
 
 def check_chunk(chunk, chars_to_strip=CHARS_TO_STRIP, acronyms=ACRONYMS, protected_tokens=PROTECTED_TOKENS):
+    """Split one whitespace-separated chunk into (token, protected) pairs."""
     chunk = chunk.strip(chars_to_strip)
     chunk = chunk.rstrip(".")
     if not chunk:
@@ -159,6 +99,7 @@ def check_chunk(chunk, chars_to_strip=CHARS_TO_STRIP, acronyms=ACRONYMS, protect
 
 
 def split_text(text, chars_to_strip=CHARS_TO_STRIP, acronyms=ACRONYMS, protected_tokens=PROTECTED_TOKENS):
+    """Split a whole string into (token, protected) pairs, chunk by chunk."""
     splitted = text.split()
     res = []
     for split in splitted:
@@ -166,6 +107,7 @@ def split_text(text, chars_to_strip=CHARS_TO_STRIP, acronyms=ACRONYMS, protected
     return res
 
 def stem_word(word, stem=True):
+    """Snowball stem of word (cached); the word itself if stem is False."""
     if stem:
         if word in stem_cache:
             return stem_cache[word]
@@ -175,14 +117,14 @@ def stem_word(word, stem=True):
 
 
 def is_removed(word, query=False, stopwords=STOPWORDS, acronyms=ACRONYMS):
-    # In queries, acronyms that are also stopwords ("it support") are never removed:
-    # users type in lowercase, and documents only kept them when written in capitals.
+    """True if word is a stopword; in queries, stopword-acronyms (it, or, us) are kept."""
     if query and word.upper() in acronyms:
         return False
     return word in stopwords
 
 
 def combine_terms_positions(split, stem=True, query=False, stopwords=STOPWORDS, acronyms=ACRONYMS):
+    """Give each token its position, drop stopwords, stack hyphenated words and stem."""
     term_pos_pairs = []
     i = 0
     for text, keep in split:
@@ -210,7 +152,9 @@ def combine_terms_positions(split, stem=True, query=False, stopwords=STOPWORDS, 
 
 
 def analyze(text, stem=True, query=False):
-    """Turn one string into a list of (term, position) pairs; see the module docstring."""
+    """Turn one string into [(term, position)]. stem=False skips stemming;
+    query=True keeps stopword-acronyms.
+    """
     if not text:
         return []
     text = normalize(text)
